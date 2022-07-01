@@ -1,0 +1,34 @@
+[package]
+name = "modality-trace-recorder-plugin"
+version = "0.1.0"
+edition = "2021"
+authors = ["Jon Lamb <jon@auxon.io>"]
+description = "A Modality reflector plugin suite and ingest adapter library for Percepio's TraceRecorder data"
+license = "Apache-2.0"
+repository = "https://github.com/auxoncorp/modality-trace-recorder-plugin"
+documentation = "https://docs.rs/modality-trace-recorder-plugin"
+
+[lib]
+name = "modality_trace_recorder_plugin"
+path = "src/lib.rs"
+
+[[bin]]
+name = "modality-trace-recorder-importer"
+path = "src/bin/importer.rs"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "io-util", "net", "signal", "tracing"] }
+futures = "0.3"
+thiserror = "1"
+derive_more = "0.99"
+hex = "0.4"
+dirs = "4"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+clap = { version = "3.2", features = ["derive", "env"] }
+ctrlc = { version = "3.2", features=["termination"] }
+exitcode = "1"
+modality-ingest-client = "0.1"
+trace-recorder-parser = "0.1"
