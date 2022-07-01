@@ -2,6 +2,9 @@
 
 A Modality reflector plugin suite and ingest adapter library for Percepio's [TraceRecorder](https://github.com/percepio/TraceRecorderSource) data.
 
+Supports the following kernel ports:
+* FreeRTOS
+
 ## LICENSE
 
 See [LICENSE](./LICENSE) for more details.

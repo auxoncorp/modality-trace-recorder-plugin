@@ -120,39 +120,40 @@ pub enum EventAttrKey {
     #[display(fmt = "event.internal.trace-recorder.task.priority")]
     TaskPriority,
 
-    #[display(fmt = "event.internal.trace-recorder.user.channel")]
+    // User events are more important so we surface the attrs at the top level
+    #[display(fmt = "event.channel")]
     UserChannel,
-    #[display(fmt = "event.internal.trace-recorder.user.formatted_string")]
+    #[display(fmt = "event.formatted_string")]
     UserFormattedString,
-    #[display(fmt = "event.internal.trace-recorder.user.arg0")]
+    #[display(fmt = "event.arg0")]
     UserArg0,
-    #[display(fmt = "event.internal.trace-recorder.user.arg1")]
+    #[display(fmt = "event.arg1")]
     UserArg1,
-    #[display(fmt = "event.internal.trace-recorder.user.arg2")]
+    #[display(fmt = "event.arg2")]
     UserArg2,
-    #[display(fmt = "event.internal.trace-recorder.user.arg3")]
+    #[display(fmt = "event.arg3")]
     UserArg3,
-    #[display(fmt = "event.internal.trace-recorder.user.arg4")]
+    #[display(fmt = "event.arg4")]
     UserArg4,
-    #[display(fmt = "event.internal.trace-recorder.user.arg5")]
+    #[display(fmt = "event.arg5")]
     UserArg5,
-    #[display(fmt = "event.internal.trace-recorder.user.arg6")]
+    #[display(fmt = "event.arg6")]
     UserArg6,
-    #[display(fmt = "event.internal.trace-recorder.user.arg7")]
+    #[display(fmt = "event.arg7")]
     UserArg7,
-    #[display(fmt = "event.internal.trace-recorder.user.arg8")]
+    #[display(fmt = "event.arg8")]
     UserArg8,
-    #[display(fmt = "event.internal.trace-recorder.user.arg9")]
+    #[display(fmt = "event.arg9")]
     UserArg9,
-    #[display(fmt = "event.internal.trace-recorder.user.arg10")]
+    #[display(fmt = "event.arg10")]
     UserArg10,
-    #[display(fmt = "event.internal.trace-recorder.user.arg11")]
+    #[display(fmt = "event.arg11")]
     UserArg11,
-    #[display(fmt = "event.internal.trace-recorder.user.arg12")]
+    #[display(fmt = "event.arg12")]
     UserArg12,
-    #[display(fmt = "event.internal.trace-recorder.user.arg13")]
+    #[display(fmt = "event.arg13")]
     UserArg13,
-    #[display(fmt = "event.internal.trace-recorder.user.arg14")]
+    #[display(fmt = "event.arg14")]
     UserArg14,
 }
 
