@@ -459,7 +459,7 @@ dependencies = [
 
 [[package]]
 name = "modality-trace-recorder-plugin"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "clap",
  "ctrlc",
@@ -932,9 +932,9 @@ dependencies = [
 
 [[package]]
 name = "trace-recorder-parser"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7367719f4c68c10afb5e22e5b691cda15ba27e7e70118187a51dc223cf918d95"
+checksum = "42ec6650224358b0a1f8b3da9d52043b8317c6154c83c2e0e4544e6d911a450d"
 dependencies = [
  "byteordered",
  "derive_more",

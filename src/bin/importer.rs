@@ -3,7 +3,7 @@
 use clap::Parser;
 use modality_trace_recorder_plugin::{
     import::{import, Config},
-    CommonOpts, Interruptor, SnapshotFile,
+    CommonOpts, Interruptor, RenameMapItem, SnapshotFile,
 };
 use std::fs::File;
 use std::path::PathBuf;
@@ -18,13 +18,37 @@ pub struct Opts {
 
     /// Instead of 'USER_EVENT @ <task-name>', use the user event channel
     /// as the event name (<channel> @ <task-name>)
-    #[clap(long, conflicts_with = "user-event-format-string")]
+    #[clap(
+        long,
+        name = "user-event-channel",
+        conflicts_with = "user-event-format-string"
+    )]
     pub user_event_channel: bool,
 
     /// Instead of 'USER_EVENT @ <task-name>', use the user event format string
     /// as the event name (<format-string> @ <task-name>)
-    #[clap(long, conflicts_with = "user-event-channel")]
+    #[clap(
+        long,
+        name = "user-event-format-string",
+        conflicts_with = "user-event-channel"
+    )]
     pub user_event_format_string: bool,
+
+    /// Use a custom event name whenever a user event with a matching
+    /// channel is processed.
+    /// Can be supplied multiple times.
+    ///
+    /// Format is '<input-channel>:<output-event-name>'.
+    #[clap(long, name = "input-channel>:<output-event-name")]
+    pub user_event_channel_name: Vec<RenameMapItem>,
+
+    /// Use a custom event name whenever a user event with a matching
+    /// formatted string is processed.
+    /// Can be supplied multiple times.
+    ///
+    /// Format is '<input-formatted-string>:<output-event-name>'.
+    #[clap(long, name = "input-formatted-string>:<output-event-name")]
+    pub user_event_format_string_name: Vec<RenameMapItem>,
 
     /// Use a single timeline for all tasks instead of a timeline per task.
     /// ISRs can still be represented with their own timelines or not
@@ -36,11 +60,11 @@ pub struct Opts {
     pub flatten_isr_timelines: bool,
 
     /// Use the provided initial startup task name instead of the default ('(startup)')
-    #[clap(long)]
+    #[clap(long, name = "startup-task-name")]
     pub startup_task_name: Option<String>,
 
     /// Path to memory dump file
-    #[clap(value_parser)]
+    #[clap(value_parser, name = "memory dump file path")]
     pub path: PathBuf,
 }
 
@@ -86,6 +110,11 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         common: opts.common,
         user_event_channel: opts.user_event_channel,
         user_event_format_string: opts.user_event_format_string,
+        user_event_channel_rename_map: opts.user_event_channel_name.into_iter().collect(),
+        user_event_format_string_rename_map: opts
+            .user_event_format_string_name
+            .into_iter()
+            .collect(),
         single_task_timeline: opts.single_task_timeline,
         flatten_isr_timelines: opts.flatten_isr_timelines,
         startup_task_name: opts.startup_task_name,

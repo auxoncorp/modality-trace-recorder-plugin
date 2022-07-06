@@ -1,6 +1,6 @@
 use crate::{
     CommonOpts, ContextEvent, ContextHandle, ContextSwitchOutcome, EventAttrKey, EventAttrKeys,
-    TimelineAttrKey, TimelineAttrKeys,
+    RenameMap, TimelineAttrKey, TimelineAttrKeys,
 };
 use modality_ingest_client::{
     types::{AttrKey, AttrVal, BigInt, Nanoseconds, TimelineId},
@@ -68,6 +68,8 @@ pub struct Config {
     pub common: CommonOpts,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
+    pub user_event_channel_rename_map: RenameMap,
+    pub user_event_format_string_rename_map: RenameMap,
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
     pub startup_task_name: Option<String>,
@@ -112,15 +114,10 @@ pub async fn import<R: Read + Seek + Send>(mut r: R, cfg: Config) -> Result<(), 
         let (event_type, event) = maybe_event?;
         let event_code = EventCode::from(event_type);
 
-        // Event name for USER_EVENT type depends on the mode we're in
-        let alt_user_event_name = cfg.user_event_channel || cfg.user_event_format_string;
-        if !(alt_user_event_name && matches!(event_type, EventType::UserEvent(_))) {
-            attrs.insert(
-                importer.event_key(EventAttrKey::Name).await?,
-                event_type.to_string().into(),
-            );
-        }
-
+        attrs.insert(
+            importer.event_key(EventAttrKey::Name).await?,
+            event_type.to_string().into(),
+        );
         attrs.insert(
             importer.event_key(EventAttrKey::EventCode).await?,
             AttrVal::Integer(u8::from(event_code).into()),
@@ -217,6 +214,25 @@ pub async fn import<R: Read + Seek + Send>(mut r: R, cfg: Config) -> Result<(), 
                     attrs.insert(
                         importer.event_key(EventAttrKey::Name).await?,
                         ev.formatted_string.to_string().into(),
+                    );
+                }
+
+                // Handle channel event name mappings
+                if let Some(name) = cfg.user_event_channel_rename_map.get(ev.channel.as_str()) {
+                    attrs.insert(
+                        importer.event_key(EventAttrKey::Name).await?,
+                        name.to_string().into(),
+                    );
+                }
+
+                // Handle format string event name mappings
+                if let Some(name) = cfg
+                    .user_event_format_string_rename_map
+                    .get(ev.formatted_string.as_str())
+                {
+                    attrs.insert(
+                        importer.event_key(EventAttrKey::Name).await?,
+                        name.to_string().into(),
                     );
                 }
 

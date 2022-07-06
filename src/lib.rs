@@ -4,7 +4,7 @@ pub use attr::{EventAttrKey, EventAttrKeys, TimelineAttrKey, TimelineAttrKeys};
 pub use auth::AuthTokenBytes;
 pub use context::{ContextEvent, ContextHandle, ContextSwitchOutcome};
 pub use interruptor::Interruptor;
-pub use opts::CommonOpts;
+pub use opts::{CommonOpts, RenameMap, RenameMapItem};
 pub use snapshot::SnapshotFile;
 
 pub mod attr;
