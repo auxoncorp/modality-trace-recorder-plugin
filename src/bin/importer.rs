@@ -16,8 +16,13 @@ pub struct Opts {
     #[clap(flatten)]
     pub common: CommonOpts,
 
+    /// Instead of 'USER_EVENT @ <task-name>', use the user event channel
+    /// as the event name (<channel> @ <task-name>)
+    #[clap(long)]
+    pub user_event_channel: bool,
+
     /// Use a single timeline for all tasks instead of a timeline per task.
-    /// ISRs can still be represented with their own timelines or not.
+    /// ISRs can still be represented with their own timelines or not
     #[clap(long)]
     pub single_task_timeline: bool,
 
@@ -74,6 +79,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config {
         common: opts.common,
+        user_event_channel: opts.user_event_channel,
         single_task_timeline: opts.single_task_timeline,
         flatten_isr_timelines: opts.flatten_isr_timelines,
         startup_task_name: opts.startup_task_name,

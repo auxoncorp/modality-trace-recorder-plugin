@@ -66,6 +66,7 @@ pub enum Error {
 #[derive(Clone, Debug)]
 pub struct Config {
     pub common: CommonOpts,
+    pub user_event_channel: bool,
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
     pub startup_task_name: Option<String>,
@@ -103,17 +104,21 @@ pub async fn import<R: Read + Seek + Send>(mut r: R, cfg: Config) -> Result<(), 
         .authenticate(cfg.common.resolve_auth()?.into())
         .await?;
 
-    let mut importer = Importer::begin(client, cfg, &trd).await?;
+    let mut importer = Importer::begin(client, cfg.clone(), &trd).await?;
 
     for maybe_event in trd.events(&mut r)? {
         let mut attrs = HashMap::new();
         let (event_type, event) = maybe_event?;
         let event_code = EventCode::from(event_type);
 
-        attrs.insert(
-            importer.event_key(EventAttrKey::Name).await?,
-            event_type.to_string().into(),
-        );
+        // Event name for USER_EVENT type depends on the mode we're in
+        if cfg.user_event_channel && !matches!(event_type, EventType::UserEvent(_)) {
+            attrs.insert(
+                importer.event_key(EventAttrKey::Name).await?,
+                event_type.to_string().into(),
+            );
+        }
+
         attrs.insert(
             importer.event_key(EventAttrKey::EventCode).await?,
             AttrVal::Integer(u8::from(event_code).into()),
@@ -199,6 +204,14 @@ pub async fn import<R: Read + Seek + Send>(mut r: R, cfg: Config) -> Result<(), 
             Event::LowPowerBegin(ev) | Event::LowPowerEnd(ev) => ev.timestamp,
 
             Event::User(ev) => {
+                if cfg.user_event_channel {
+                    // Use the channel as the event name
+                    attrs.insert(
+                        importer.event_key(EventAttrKey::Name).await?,
+                        ev.channel.to_string().into(),
+                    );
+                }
+
                 attrs.insert(
                     importer.event_key(EventAttrKey::UserChannel).await?,
                     ev.channel.to_string().into(),
