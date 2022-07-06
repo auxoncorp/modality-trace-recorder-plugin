@@ -67,6 +67,7 @@ pub enum Error {
 pub struct Config {
     pub common: CommonOpts,
     pub user_event_channel: bool,
+    pub user_event_format_string: bool,
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
     pub startup_task_name: Option<String>,
@@ -112,7 +113,8 @@ pub async fn import<R: Read + Seek + Send>(mut r: R, cfg: Config) -> Result<(), 
         let event_code = EventCode::from(event_type);
 
         // Event name for USER_EVENT type depends on the mode we're in
-        if cfg.user_event_channel && !matches!(event_type, EventType::UserEvent(_)) {
+        let alt_user_event_name = cfg.user_event_channel || cfg.user_event_format_string;
+        if !(alt_user_event_name && matches!(event_type, EventType::UserEvent(_))) {
             attrs.insert(
                 importer.event_key(EventAttrKey::Name).await?,
                 event_type.to_string().into(),
@@ -209,6 +211,12 @@ pub async fn import<R: Read + Seek + Send>(mut r: R, cfg: Config) -> Result<(), 
                     attrs.insert(
                         importer.event_key(EventAttrKey::Name).await?,
                         ev.channel.to_string().into(),
+                    );
+                } else if cfg.user_event_format_string {
+                    // Use the format string as the event name
+                    attrs.insert(
+                        importer.event_key(EventAttrKey::Name).await?,
+                        ev.formatted_string.to_string().into(),
                     );
                 }
 
