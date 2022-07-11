@@ -345,9 +345,7 @@ impl Importer {
             let key = timeline_keys.get(&mut client, *tak).await?;
             let val = match tak {
                 // These are defined by the actual timeline
-                TimelineAttrKey::Name | TimelineAttrKey::Id | TimelineAttrKey::Description => {
-                    continue
-                }
+                TimelineAttrKey::Name | TimelineAttrKey::Description => continue,
 
                 // Only have ns resolution if frequency is non-zero
                 TimelineAttrKey::TimeResolution => match trd.frequency.resolution_ns() {
@@ -409,10 +407,7 @@ impl Importer {
 
         // Add root startup task timeline metadata
         importer
-            .add_timeline_metadata(
-                importer.handle_of_last_logged_context,
-                startup_task_timeline_id,
-            )
+            .add_timeline_metadata(importer.handle_of_last_logged_context)
             .await?;
 
         Ok(importer)
@@ -522,7 +517,7 @@ impl Importer {
         self.client.open_timeline(curr_timeline_id).await?;
         if timeline_is_new {
             // Add timeline metadata in the newly updated context
-            self.add_timeline_metadata(self.handle_of_last_logged_context, curr_timeline_id)
+            self.add_timeline_metadata(self.handle_of_last_logged_context)
                 .await?;
         }
 
@@ -536,11 +531,7 @@ impl Importer {
         }
     }
 
-    async fn add_timeline_metadata(
-        &mut self,
-        handle: ContextHandle,
-        timeline_id: TimelineId,
-    ) -> Result<(), Error> {
+    async fn add_timeline_metadata(&mut self, handle: ContextHandle) -> Result<(), Error> {
         let (timeline_name, timeline_desc) = match handle {
             ContextHandle::Task(handle) => {
                 let props = self
@@ -595,12 +586,6 @@ impl Importer {
                 .get(&mut self.client, TimelineAttrKey::Name)
                 .await?,
             timeline_name.into(),
-        );
-        attr_kvs.insert(
-            self.timeline_keys
-                .get(&mut self.client, TimelineAttrKey::Id)
-                .await?,
-            AttrVal::TimelineId(Box::new(timeline_id)),
         );
         attr_kvs.insert(
             self.timeline_keys

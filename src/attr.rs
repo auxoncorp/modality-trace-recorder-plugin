@@ -6,8 +6,6 @@ use std::{collections::HashMap, hash::Hash};
 pub enum TimelineAttrKey {
     #[display(fmt = "timeline.name")]
     Name,
-    #[display(fmt = "timeline.id")]
-    Id,
     #[display(fmt = "timeline.description")]
     Description,
     #[display(fmt = "timeline.run_id")]
@@ -62,7 +60,6 @@ impl TimelineAttrKey {
         use TimelineAttrKey::*;
         &[
             Name,
-            Id,
             Description,
             RunId,
             TimeDomain,
