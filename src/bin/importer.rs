@@ -2,14 +2,13 @@
 
 use clap::Parser;
 use modality_trace_recorder_plugin::{
-    import::{import, Config},
-    CommonOpts, Interruptor, RenameMapItem, SnapshotFile,
+    import::import, CommonOpts, Interruptor, RenameMapItem, SnapshotFile, TraceRecorderConfig,
 };
 use std::fs::File;
 use std::path::PathBuf;
 use tracing::debug;
 
-/// Import trace recorder snapshot data from a memory dump file
+/// Import trace recorder data from a file
 #[derive(Parser, Debug, Clone)]
 #[clap(version, about, long_about = None)]
 pub struct Opts {
@@ -63,8 +62,24 @@ pub struct Opts {
     #[clap(long, name = "startup-task-name")]
     pub startup_task_name: Option<String>,
 
-    /// Path to memory dump file
-    #[clap(value_parser, name = "memory dump file path")]
+    /// Use the snapshot protocol instead of automatically detecting which protocol to use
+    #[clap(
+        long,
+        name = "snapshot-protocol",
+        conflicts_with = "streaming-protocol"
+    )]
+    pub snapshot: bool,
+
+    /// Use the streaming protocol instead of automatically detecting which protocol to use
+    #[clap(
+        long,
+        name = "streaming-protocol",
+        conflicts_with = "snapshot-protocol"
+    )]
+    pub streaming: bool,
+
+    /// Path to file
+    #[clap(value_parser, name = "file path")]
     pub path: PathBuf,
 }
 
@@ -106,7 +121,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    let config = Config {
+    let config = TraceRecorderConfig {
         common: opts.common,
         user_event_channel: opts.user_event_channel,
         user_event_format_string: opts.user_event_format_string,
@@ -118,6 +133,8 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         single_task_timeline: opts.single_task_timeline,
         flatten_isr_timelines: opts.flatten_isr_timelines,
         startup_task_name: opts.startup_task_name,
+        snapshot: opts.snapshot,
+        streaming: opts.streaming,
     };
 
     let f = SnapshotFile::open(&opts.path)?;

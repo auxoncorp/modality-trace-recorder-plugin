@@ -3,6 +3,11 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+pub use attr::{EventAttrKey, TimelineAttrKey};
+
+pub mod attr;
+pub mod trace_recorder;
+
 #[derive(Debug, Error)]
 pub enum SnapshotFileOpenError {
     #[error(

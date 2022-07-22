@@ -1,10 +1,6 @@
 use modality_ingest_client::types::TimelineId;
 use std::hash::Hash;
-use trace_recorder_parser::snapshot::{
-    event::{IsrEvent, TaskEvent},
-    object_properties::ObjectHandle,
-    Timestamp,
-};
+use trace_recorder_parser::{snapshot, streaming, time::Timestamp, types::ObjectHandle};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ContextSwitchOutcome {
@@ -21,29 +17,35 @@ pub enum ContextHandle {
     Isr(ObjectHandle),
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum ContextEvent {
-    Task(TaskEvent),
-    Isr(IsrEvent),
-}
-
-impl ContextEvent {
-    pub fn handle(&self) -> ContextHandle {
+impl ContextHandle {
+    pub fn object_handle(self) -> ObjectHandle {
         match self {
-            ContextEvent::Task(event) => ContextHandle::Task(event.handle),
-            ContextEvent::Isr(event) => ContextHandle::Isr(event.handle),
+            ContextHandle::Task(h) => h,
+            ContextHandle::Isr(h) => h,
         }
     }
 }
 
-impl From<TaskEvent> for ContextEvent {
-    fn from(event: TaskEvent) -> Self {
-        ContextEvent::Task(event)
+impl From<snapshot::event::TaskEvent> for ContextHandle {
+    fn from(event: snapshot::event::TaskEvent) -> Self {
+        ContextHandle::Task(event.handle)
     }
 }
 
-impl From<IsrEvent> for ContextEvent {
-    fn from(event: IsrEvent) -> Self {
-        ContextEvent::Isr(event)
+impl From<snapshot::event::IsrEvent> for ContextHandle {
+    fn from(event: snapshot::event::IsrEvent) -> Self {
+        ContextHandle::Isr(event.handle)
+    }
+}
+
+impl From<streaming::event::TaskEvent> for ContextHandle {
+    fn from(event: streaming::event::TaskEvent) -> Self {
+        ContextHandle::Task(event.handle)
+    }
+}
+
+impl From<streaming::event::IsrEvent> for ContextHandle {
+    fn from(event: streaming::event::IsrEvent) -> Self {
+        ContextHandle::Isr(event.handle)
     }
 }

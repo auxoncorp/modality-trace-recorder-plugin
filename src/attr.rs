@@ -1,9 +1,36 @@
 use derive_more::Display;
 use modality_ingest_client::{types::AttrKey, BoundTimelineState, IngestClient, IngestError};
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, fmt, hash::Hash};
+
+pub trait AttrKeyIndex: Hash + Eq + fmt::Display {}
+
+#[derive(Clone, Debug)]
+pub struct AttrKeys<T: AttrKeyIndex>(HashMap<T, AttrKey>);
+
+impl<T: AttrKeyIndex> Default for AttrKeys<T> {
+    fn default() -> Self {
+        Self(HashMap::new())
+    }
+}
+
+impl<T: AttrKeyIndex> AttrKeys<T> {
+    pub async fn get(
+        &mut self,
+        client: &mut IngestClient<BoundTimelineState>,
+        key: T,
+    ) -> Result<AttrKey, IngestError> {
+        if let Some(k) = self.0.get(&key) {
+            Ok(*k)
+        } else {
+            let interned_key = client.attr_key(key.to_string()).await?;
+            self.0.insert(key, interned_key);
+            Ok(interned_key)
+        }
+    }
+}
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-pub enum TimelineAttrKey {
+pub enum CommonTimelineAttrKey {
     #[display(fmt = "timeline.name")]
     Name,
     #[display(fmt = "timeline.description")]
@@ -15,80 +42,24 @@ pub enum TimelineAttrKey {
     #[display(fmt = "timeline.time_resolution")]
     TimeResolution,
 
+    #[display(fmt = "timeline.internal.trace-recorder.protocol")]
+    Protocol,
     #[display(fmt = "timeline.internal.trace-recorder.kernel.version")]
     KernelVersion,
     #[display(fmt = "timeline.internal.trace-recorder.kernel.port")]
     KernelPort,
     #[display(fmt = "timeline.internal.trace-recorder.endianness")]
     Endianness,
-    #[display(fmt = "timeline.internal.trace-recorder.minor_version")]
-    MinorVersion,
     #[display(fmt = "timeline.internal.trace-recorder.irq_priority_order")]
     IrqPriorityOrder,
-    #[display(fmt = "timeline.internal.trace-recorder.file_size")]
-    FileSize,
-    #[display(fmt = "timeline.internal.trace-recorder.num_events")]
-    NumEvents,
-    #[display(fmt = "timeline.internal.trace-recorder.max_events")]
-    MaxEvents,
-    #[display(fmt = "timeline.internal.trace-recorder.buffer_full")]
-    BufferFull,
     #[display(fmt = "timeline.internal.trace-recorder.frequency")]
     Frequency,
-    #[display(fmt = "timeline.internal.trace-recorder.abs_time_last_event")]
-    AbsTimeLastEvent,
-    #[display(fmt = "timeline.internal.trace-recorder.abs_time_last_event_second")]
-    AbsTimeLastEventSecond,
-    #[display(fmt = "timeline.internal.trace-recorder.recorder_active")]
-    RecorderActive,
     #[display(fmt = "timeline.internal.trace-recorder.isr_tail_chaining_threshold")]
     IsrChainingThreshold,
-    #[display(fmt = "timeline.internal.trace-recorder.heap_mem_usage")]
-    HeapMemUsage,
-    #[display(fmt = "timeline.internal.trace-recorder.using_16bit_handles")]
-    Using16bitHandles,
-    #[display(fmt = "timeline.internal.trace-recorder.float_encoding")]
-    FloatEncoding,
-    #[display(fmt = "timeline.internal.trace-recorder.internal_error_occured")]
-    InternalErrorOccured,
-    #[display(fmt = "timeline.internal.trace-recorder.system_info")]
-    SystemInfo,
-}
-
-impl TimelineAttrKey {
-    pub fn enumerate() -> &'static [Self] {
-        use TimelineAttrKey::*;
-        &[
-            Name,
-            Description,
-            RunId,
-            TimeDomain,
-            TimeResolution,
-            KernelVersion,
-            KernelPort,
-            Endianness,
-            MinorVersion,
-            IrqPriorityOrder,
-            FileSize,
-            NumEvents,
-            MaxEvents,
-            BufferFull,
-            Frequency,
-            AbsTimeLastEvent,
-            AbsTimeLastEventSecond,
-            RecorderActive,
-            IsrChainingThreshold,
-            HeapMemUsage,
-            Using16bitHandles,
-            FloatEncoding,
-            InternalErrorOccured,
-            SystemInfo,
-        ]
-    }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-pub enum EventAttrKey {
+pub enum CommonEventAttrKey {
     #[display(fmt = "event.name")]
     Name,
     #[display(fmt = "event.timestamp")]
@@ -112,8 +83,6 @@ pub enum EventAttrKey {
 
     #[display(fmt = "event.internal.trace-recorder.task.name")]
     TaskName,
-    #[display(fmt = "event.internal.trace-recorder.task.state")]
-    TaskState,
     #[display(fmt = "event.internal.trace-recorder.task.priority")]
     TaskPriority,
 
@@ -152,32 +121,4 @@ pub enum EventAttrKey {
     UserArg13,
     #[display(fmt = "event.arg14")]
     UserArg14,
-}
-
-pub type TimelineAttrKeys = AttrKeys<TimelineAttrKey>;
-pub type EventAttrKeys = AttrKeys<EventAttrKey>;
-
-#[derive(Clone, Debug)]
-pub struct AttrKeys<T: Hash + Eq + std::fmt::Display>(HashMap<T, AttrKey>);
-
-impl<T: Hash + Eq + std::fmt::Display> Default for AttrKeys<T> {
-    fn default() -> Self {
-        Self(HashMap::new())
-    }
-}
-
-impl<T: Hash + Eq + std::fmt::Display> AttrKeys<T> {
-    pub async fn get(
-        &mut self,
-        client: &mut IngestClient<BoundTimelineState>,
-        key: T,
-    ) -> Result<AttrKey, IngestError> {
-        if let Some(k) = self.0.get(&key) {
-            Ok(*k)
-        } else {
-            let interned_key = client.attr_key(key.to_string()).await?;
-            self.0.insert(key, interned_key);
-            Ok(interned_key)
-        }
-    }
 }
