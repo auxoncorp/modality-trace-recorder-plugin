@@ -59,25 +59,32 @@ pub enum Error {
     Io(#[from] io::Error),
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum ImportProtocol {
+    Snapshot,
+    Streaming,
+    Auto,
+}
+
 pub async fn import<R: Read + Seek + Send>(
     mut r: R,
+    protocol: ImportProtocol,
     cfg: TraceRecorderConfig,
 ) -> Result<(), Error> {
-    if cfg.snapshot {
-        import_snapshot(r, cfg).await
-    } else if cfg.streaming {
-        import_streaming(r, cfg).await
-    } else {
-        // Auto detect
-        let current_pos = r.stream_position()?;
-        debug!("Attempting to detect streaming protocol first");
-        let found_psf_word = HeaderInfo::read_psf_word(&mut r).is_ok();
-        r.seek(SeekFrom::Start(current_pos))?;
-        if found_psf_word {
-            import_streaming(r, cfg).await
-        } else {
-            debug!("Attempting snapshot protocol");
-            import_snapshot(r, cfg).await
+    match protocol {
+        ImportProtocol::Snapshot => import_snapshot(r, cfg).await,
+        ImportProtocol::Streaming => import_streaming(r, cfg).await,
+        ImportProtocol::Auto => {
+            let current_pos = r.stream_position()?;
+            debug!("Attempting to detect streaming protocol first");
+            let found_psf_word = HeaderInfo::read_psf_word(&mut r).is_ok();
+            r.seek(SeekFrom::Start(current_pos))?;
+            if found_psf_word {
+                import_streaming(r, cfg).await
+            } else {
+                debug!("Attempting snapshot protocol");
+                import_snapshot(r, cfg).await
+            }
         }
     }
 }
@@ -116,12 +123,12 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
     }
 
     let client = IngestClient::connect(
-        &cfg.common.protocol_parent_url,
-        cfg.common.allow_insecure_tls,
+        &cfg.rf_opts.protocol_parent_url,
+        cfg.rf_opts.allow_insecure_tls,
     )
     .await?;
     let client = client
-        .authenticate(cfg.common.resolve_auth()?.into())
+        .authenticate(cfg.rf_opts.resolve_auth()?.into())
         .await?;
 
     let mut ordering = 0;
@@ -218,13 +225,13 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
             }
 
             Event::User(ev) => {
-                if cfg.user_event_channel {
+                if cfg.tr_opts.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         ev.channel.to_string().into(),
                     );
-                } else if cfg.user_event_format_string {
+                } else if cfg.tr_opts.user_event_format_string {
                     // Use the format string as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
@@ -338,12 +345,12 @@ pub async fn import_streaming<R: Read + Send>(
     }
 
     let client = IngestClient::connect(
-        &cfg.common.protocol_parent_url,
-        cfg.common.allow_insecure_tls,
+        &cfg.rf_opts.protocol_parent_url,
+        cfg.rf_opts.allow_insecure_tls,
     )
     .await?;
     let client = client
-        .authenticate(cfg.common.resolve_auth()?.into())
+        .authenticate(cfg.rf_opts.resolve_auth()?.into())
         .await?;
 
     let mut ordering = 0;
@@ -463,13 +470,13 @@ pub async fn import_streaming<R: Read + Send>(
             }
 
             Event::User(ev) => {
-                if cfg.user_event_channel {
+                if cfg.tr_opts.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         ev.channel.to_string().into(),
                     );
-                } else if cfg.user_event_format_string {
+                } else if cfg.tr_opts.user_event_format_string {
                     // Use the format string as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
@@ -605,9 +612,9 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
 
         let mut importer = Importer {
-            single_task_timeline: cfg.single_task_timeline,
-            flatten_isr_timelines: cfg.flatten_isr_timelines,
-            startup_task_name: cfg.startup_task_name,
+            single_task_timeline: cfg.tr_opts.single_task_timeline,
+            flatten_isr_timelines: cfg.tr_opts.flatten_isr_timelines,
+            startup_task_name: cfg.tr_opts.startup_task_name,
             startup_task_handle,
             handle_of_last_logged_context: ContextHandle::Task(startup_task_handle),
             timestamp_of_last_event: Timestamp::zero(),

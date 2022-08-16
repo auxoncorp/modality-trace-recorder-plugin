@@ -2,7 +2,8 @@
 
 use clap::Parser;
 use modality_trace_recorder_plugin::{
-    import::import, CommonOpts, Interruptor, RenameMapItem, SnapshotFile, TraceRecorderConfig,
+    import::import, tracing::try_init_tracing_subscriber, ImportProtocol, Interruptor,
+    ReflectorOpts, SnapshotFile, TraceRecorderConfig, TraceRecorderOpts,
 };
 use std::fs::File;
 use std::path::PathBuf;
@@ -10,57 +11,12 @@ use tracing::debug;
 
 /// Import trace recorder data from a file
 #[derive(Parser, Debug, Clone)]
-#[clap(version, about, long_about = None)]
 pub struct Opts {
     #[clap(flatten)]
-    pub common: CommonOpts,
+    pub rf_opts: ReflectorOpts,
 
-    /// Instead of 'USER_EVENT @ <task-name>', use the user event channel
-    /// as the event name (<channel> @ <task-name>)
-    #[clap(
-        long,
-        name = "user-event-channel",
-        conflicts_with = "user-event-format-string"
-    )]
-    pub user_event_channel: bool,
-
-    /// Instead of 'USER_EVENT @ <task-name>', use the user event format string
-    /// as the event name (<format-string> @ <task-name>)
-    #[clap(
-        long,
-        name = "user-event-format-string",
-        conflicts_with = "user-event-channel"
-    )]
-    pub user_event_format_string: bool,
-
-    /// Use a custom event name whenever a user event with a matching
-    /// channel is processed.
-    /// Can be supplied multiple times.
-    ///
-    /// Format is '<input-channel>:<output-event-name>'.
-    #[clap(long, name = "input-channel>:<output-event-name")]
-    pub user_event_channel_name: Vec<RenameMapItem>,
-
-    /// Use a custom event name whenever a user event with a matching
-    /// formatted string is processed.
-    /// Can be supplied multiple times.
-    ///
-    /// Format is '<input-formatted-string>:<output-event-name>'.
-    #[clap(long, name = "input-formatted-string>:<output-event-name")]
-    pub user_event_format_string_name: Vec<RenameMapItem>,
-
-    /// Use a single timeline for all tasks instead of a timeline per task.
-    /// ISRs can still be represented with their own timelines or not
-    #[clap(long)]
-    pub single_task_timeline: bool,
-
-    /// Represent ISR in the parent task context timeline rather than a dedicated ISR timeline
-    #[clap(long)]
-    pub flatten_isr_timelines: bool,
-
-    /// Use the provided initial startup task name instead of the default ('(startup)')
-    #[clap(long, name = "startup-task-name")]
-    pub startup_task_name: Option<String>,
+    #[clap(flatten)]
+    pub tr_opts: TraceRecorderOpts,
 
     /// Use the snapshot protocol instead of automatically detecting which protocol to use
     #[clap(
@@ -121,24 +77,19 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    let config = TraceRecorderConfig {
-        common: opts.common,
-        user_event_channel: opts.user_event_channel,
-        user_event_format_string: opts.user_event_format_string,
-        user_event_channel_rename_map: opts.user_event_channel_name.into_iter().collect(),
-        user_event_format_string_rename_map: opts
-            .user_event_format_string_name
-            .into_iter()
-            .collect(),
-        single_task_timeline: opts.single_task_timeline,
-        flatten_isr_timelines: opts.flatten_isr_timelines,
-        startup_task_name: opts.startup_task_name,
-        snapshot: opts.snapshot,
-        streaming: opts.streaming,
+    let protocol = if opts.snapshot {
+        ImportProtocol::Snapshot
+    } else if opts.streaming {
+        ImportProtocol::Streaming
+    } else {
+        ImportProtocol::Auto
     };
 
+    let config = TraceRecorderConfig::from((opts.rf_opts, opts.tr_opts));
+
     let f = SnapshotFile::open(&opts.path)?;
-    let mut join_handle = tokio::spawn(async move { import(File::from(f), config).await });
+    let mut join_handle =
+        tokio::spawn(async move { import(File::from(f), protocol, config).await });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
@@ -152,23 +103,5 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    Ok(())
-}
-
-fn try_init_tracing_subscriber() -> Result<(), Box<dyn std::error::Error>> {
-    let builder = tracing_subscriber::fmt::Subscriber::builder();
-    let env_filter = std::env::var(tracing_subscriber::EnvFilter::DEFAULT_ENV)
-        .map(tracing_subscriber::EnvFilter::new)
-        .unwrap_or_else(|_| {
-            tracing_subscriber::EnvFilter::new(format!(
-                "{}={}",
-                env!("CARGO_PKG_NAME").replace('-', "_"),
-                tracing::Level::WARN
-            ))
-        });
-    let builder = builder.with_env_filter(env_filter);
-    let subscriber = builder.finish();
-    use tracing_subscriber::util::SubscriberInitExt;
-    subscriber.try_init()?;
     Ok(())
 }

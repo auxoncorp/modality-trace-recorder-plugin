@@ -4,8 +4,9 @@ pub use attr::{AttrKeyIndex, AttrKeys, CommonEventAttrKey, CommonTimelineAttrKey
 pub use auth::AuthTokenBytes;
 pub use client::Client;
 pub use context::{ContextHandle, ContextSwitchOutcome};
+pub use import::ImportProtocol;
 pub use interruptor::Interruptor;
-pub use opts::{CommonOpts, RenameMap, RenameMapItem};
+pub use opts::{ReflectorOpts, RenameMap, RenameMapItem, TraceRecorderOpts};
 pub use snapshot::SnapshotFile;
 pub use trace_recorder::{NanosecondsExt, TimelineDetails, TraceRecorderConfig, TraceRecorderExt};
 
@@ -19,3 +20,4 @@ pub mod opts;
 pub mod snapshot;
 pub mod streaming;
 pub mod trace_recorder;
+pub mod tracing;

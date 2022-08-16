@@ -1,4 +1,4 @@
-use crate::{AttrKeyIndex, Client, CommonOpts, ContextHandle, RenameMap};
+use crate::{AttrKeyIndex, Client, ContextHandle, ReflectorOpts, RenameMap, TraceRecorderOpts};
 use async_trait::async_trait;
 use modality_ingest_client::{
     types::{AttrKey, AttrVal, Nanoseconds},
@@ -35,16 +35,32 @@ pub enum Error {
 
 #[derive(Clone, Debug)]
 pub struct TraceRecorderConfig {
-    pub common: CommonOpts,
-    pub user_event_channel: bool,
-    pub user_event_format_string: bool,
+    pub rf_opts: ReflectorOpts,
+    pub tr_opts: TraceRecorderOpts,
     pub user_event_channel_rename_map: RenameMap,
     pub user_event_format_string_rename_map: RenameMap,
-    pub single_task_timeline: bool,
-    pub flatten_isr_timelines: bool,
-    pub startup_task_name: Option<String>,
-    pub snapshot: bool,
-    pub streaming: bool,
+}
+
+impl From<(ReflectorOpts, TraceRecorderOpts)> for TraceRecorderConfig {
+    fn from(opts: (ReflectorOpts, TraceRecorderOpts)) -> Self {
+        let (rf_opts, tr_opts) = opts;
+        let user_event_channel_rename_map = tr_opts
+            .user_event_channel_name
+            .clone()
+            .into_iter()
+            .collect();
+        let user_event_format_string_rename_map = tr_opts
+            .user_event_format_string_name
+            .clone()
+            .into_iter()
+            .collect();
+        Self {
+            rf_opts,
+            tr_opts,
+            user_event_channel_rename_map,
+            user_event_format_string_rename_map,
+        }
+    }
 }
 
 pub trait NanosecondsExt {

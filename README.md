@@ -2,10 +2,9 @@
 
 A Modality reflector plugin suite and ingest adapter library for Percepio's [TraceRecorder](https://github.com/percepio/TraceRecorderSource) data.
 
-Supports importing data from the following kernel ports:
-* FreeRTOS
-  - snapshot protocol version 6
-  - streaming protocol version 6
+| Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | TCP |
+| :---:       | :---:             | :---:              | :---:       | :---: |
+| FreeRTOS    | v6                | v6                 | :heavy_check_mark: | :heavy_check_mark: |
 
 ## LICENSE
 

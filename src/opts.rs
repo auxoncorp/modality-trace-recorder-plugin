@@ -7,7 +7,7 @@ use url::Url;
 use uuid::Uuid;
 
 #[derive(Parser, Debug, Clone)]
-pub struct CommonOpts {
+pub struct ReflectorOpts {
     /// Modality auth token hex string used to authenticate with.
     /// Can also be provide via the MODALITY_AUTH_TOKEN environment variable.
     #[clap(long, name = "auth-token-hex-string", env = "MODALITY_AUTH_TOKEN")]
@@ -39,7 +39,57 @@ pub struct CommonOpts {
     pub time_domain: Option<Uuid>,
 }
 
-impl CommonOpts {
+#[derive(Parser, Debug, Clone)]
+pub struct TraceRecorderOpts {
+    /// Instead of 'USER_EVENT @ <task-name>', use the user event channel
+    /// as the event name (<channel> @ <task-name>)
+    #[clap(
+        long,
+        name = "user-event-channel",
+        conflicts_with = "user-event-format-string"
+    )]
+    pub user_event_channel: bool,
+
+    /// Instead of 'USER_EVENT @ <task-name>', use the user event format string
+    /// as the event name (<format-string> @ <task-name>)
+    #[clap(
+        long,
+        name = "user-event-format-string",
+        conflicts_with = "user-event-channel"
+    )]
+    pub user_event_format_string: bool,
+
+    /// Use a custom event name whenever a user event with a matching
+    /// channel is processed.
+    /// Can be supplied multiple times.
+    ///
+    /// Format is '<input-channel>:<output-event-name>'.
+    #[clap(long, name = "input-channel>:<output-event-name")]
+    pub user_event_channel_name: Vec<RenameMapItem>,
+
+    /// Use a custom event name whenever a user event with a matching
+    /// formatted string is processed.
+    /// Can be supplied multiple times.
+    ///
+    /// Format is '<input-formatted-string>:<output-event-name>'.
+    #[clap(long, name = "input-formatted-string>:<output-event-name")]
+    pub user_event_format_string_name: Vec<RenameMapItem>,
+
+    /// Use a single timeline for all tasks instead of a timeline per task.
+    /// ISRs can still be represented with their own timelines or not
+    #[clap(long)]
+    pub single_task_timeline: bool,
+
+    /// Represent ISR in the parent task context timeline rather than a dedicated ISR timeline
+    #[clap(long)]
+    pub flatten_isr_timelines: bool,
+
+    /// Use the provided initial startup task name instead of the default ('(startup)')
+    #[clap(long, name = "startup-task-name")]
+    pub startup_task_name: Option<String>,
+}
+
+impl ReflectorOpts {
     pub(crate) fn resolve_auth(&self) -> Result<AuthTokenBytes, AuthTokenError> {
         AuthTokenBytes::resolve(self.auth_token.as_deref())
     }

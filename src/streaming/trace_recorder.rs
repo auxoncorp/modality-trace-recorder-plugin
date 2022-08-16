@@ -67,8 +67,8 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
         client: &mut Client<TimelineAttrKey, EventAttrKey>,
     ) -> Result<HashMap<AttrKey, AttrVal>, Error> {
         let mut common_timeline_attr_kvs = HashMap::new();
-        let run_id = cfg.common.run_id.unwrap_or_else(Uuid::new_v4);
-        let time_domain = cfg.common.time_domain.unwrap_or_else(Uuid::new_v4);
+        let run_id = cfg.rf_opts.run_id.unwrap_or_else(Uuid::new_v4);
+        let time_domain = cfg.rf_opts.time_domain.unwrap_or_else(Uuid::new_v4);
         debug!(run_id = %run_id);
         for tak in TimelineAttrKey::enumerate() {
             let key = client.timeline_key(*tak).await?;
