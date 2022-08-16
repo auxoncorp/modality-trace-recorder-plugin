@@ -38,3 +38,6 @@ ctrlc = { version = "3.2", features=["termination"] }
 exitcode = "1"
 modality-ingest-client = "0.1"
 trace-recorder-parser = "0.1"
+
+[profile.release]
+strip="debuginfo"
