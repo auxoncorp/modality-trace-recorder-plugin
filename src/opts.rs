@@ -10,7 +10,12 @@ use uuid::Uuid;
 pub struct ReflectorOpts {
     /// Modality auth token hex string used to authenticate with.
     /// Can also be provide via the MODALITY_AUTH_TOKEN environment variable.
-    #[clap(long, name = "auth-token-hex-string", env = "MODALITY_AUTH_TOKEN")]
+    #[clap(
+        long,
+        name = "auth-token-hex-string",
+        env = "MODALITY_AUTH_TOKEN",
+        help_heading = "REFLECTOR CONFIGURATION"
+    )]
     pub auth_token: Option<String>,
 
     /// The modalityd or modality-reflector ingest protocol parent service address
@@ -22,20 +27,29 @@ pub struct ReflectorOpts {
     #[clap(
         long = "ingest-protocol-parent-url",
         name = "URL",
-        default_value = "modality-ingest://127.0.0.1:14188"
+        default_value = "modality-ingest://127.0.0.1:14188",
+        help_heading = "REFLECTOR CONFIGURATION"
     )]
     pub protocol_parent_url: Url,
 
     /// Allow insecure TLS
-    #[clap(short = 'k', long = "insecure")]
+    #[clap(
+        short = 'k',
+        long = "insecure",
+        help_heading = "REFLECTOR CONFIGURATION"
+    )]
     pub allow_insecure_tls: bool,
 
     /// Use the provided UUID as the run ID instead of generating a random one
-    #[clap(long, name = "run-uuid")]
+    #[clap(long, name = "run-uuid", help_heading = "REFLECTOR CONFIGURATION")]
     pub run_id: Option<Uuid>,
 
     /// Use the provided UUID as the time domain ID instead of generating a random one
-    #[clap(long, name = "time-domain-uuid")]
+    #[clap(
+        long,
+        name = "time-domain-uuid",
+        help_heading = "REFLECTOR CONFIGURATION"
+    )]
     pub time_domain: Option<Uuid>,
 }
 
@@ -46,7 +60,8 @@ pub struct TraceRecorderOpts {
     #[clap(
         long,
         name = "user-event-channel",
-        conflicts_with = "user-event-format-string"
+        conflicts_with = "user-event-format-string",
+        help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub user_event_channel: bool,
 
@@ -55,7 +70,8 @@ pub struct TraceRecorderOpts {
     #[clap(
         long,
         name = "user-event-format-string",
-        conflicts_with = "user-event-channel"
+        conflicts_with = "user-event-channel",
+        help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub user_event_format_string: bool,
 
@@ -64,7 +80,11 @@ pub struct TraceRecorderOpts {
     /// Can be supplied multiple times.
     ///
     /// Format is '<input-channel>:<output-event-name>'.
-    #[clap(long, name = "input-channel>:<output-event-name")]
+    #[clap(
+        long,
+        name = "input-channel>:<output-event-name",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
     pub user_event_channel_name: Vec<RenameMapItem>,
 
     /// Use a custom event name whenever a user event with a matching
@@ -72,20 +92,28 @@ pub struct TraceRecorderOpts {
     /// Can be supplied multiple times.
     ///
     /// Format is '<input-formatted-string>:<output-event-name>'.
-    #[clap(long, name = "input-formatted-string>:<output-event-name")]
+    #[clap(
+        long,
+        name = "input-formatted-string>:<output-event-name",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
     pub user_event_format_string_name: Vec<RenameMapItem>,
 
     /// Use a single timeline for all tasks instead of a timeline per task.
     /// ISRs can still be represented with their own timelines or not
-    #[clap(long)]
+    #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
     pub single_task_timeline: bool,
 
     /// Represent ISR in the parent task context timeline rather than a dedicated ISR timeline
-    #[clap(long)]
+    #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
     pub flatten_isr_timelines: bool,
 
     /// Use the provided initial startup task name instead of the default ('(startup)')
-    #[clap(long, name = "startup-task-name")]
+    #[clap(
+        long,
+        name = "startup-task-name",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
     pub startup_task_name: Option<String>,
 }
 

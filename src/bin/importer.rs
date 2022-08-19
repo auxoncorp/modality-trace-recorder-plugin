@@ -22,7 +22,8 @@ pub struct Opts {
     #[clap(
         long,
         name = "snapshot-protocol",
-        conflicts_with = "streaming-protocol"
+        conflicts_with = "streaming-protocol",
+        help_heading = "PROTOCOL CONFIGURATION"
     )]
     pub snapshot: bool,
 
@@ -30,12 +31,17 @@ pub struct Opts {
     #[clap(
         long,
         name = "streaming-protocol",
-        conflicts_with = "snapshot-protocol"
+        conflicts_with = "snapshot-protocol",
+        help_heading = "PROTOCOL CONFIGURATION"
     )]
     pub streaming: bool,
 
     /// Path to file
-    #[clap(value_parser, name = "file path")]
+    #[clap(
+        value_parser,
+        name = "file path",
+        help_heading = "PROTOCOL CONFIGURATION"
+    )]
     pub path: PathBuf,
 }
 

@@ -21,20 +21,38 @@ pub struct Opts {
     /// Disable sending control plane commands to the target.
     /// By default, CMD_SET_ACTIVE is sent on startup and shutdown to
     /// start and stop tracing on the target.
-    #[clap(long, name = "disable-control-plane")]
+    #[clap(
+        long,
+        name = "disable-control-plane",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
     pub disable_control_plane: bool,
 
     /// Send a stop command before a start command to reset tracing on the target.
-    #[clap(long, name = "restart", conflicts_with = "disable-control-plane")]
+    #[clap(
+        long,
+        name = "restart",
+        conflicts_with = "disable-control-plane",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
     pub restart: bool,
 
     /// Specify a connection timeout.
     /// Accepts durations like "10ms" or "1minute 2seconds 22ms".
-    #[clap(long, name = "connect-timeout")]
+    #[clap(
+        long,
+        name = "connect-timeout",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
     pub connect_timeout: Option<humantime::Duration>,
 
     /// The remote address and port to connect to.
-    #[clap(long, name = "remote", default_value = "127.0.0.1:8888")]
+    #[clap(
+        long,
+        name = "remote",
+        default_value = "127.0.0.1:8888",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
     pub remote: SocketAddr,
 }
 

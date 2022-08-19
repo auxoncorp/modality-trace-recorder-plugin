@@ -51,6 +51,11 @@ jobs:
           echo "Release tag: $RELEASE_TAG"
           echo "Release version: $RELEASE_VERSION"
 
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev libftdi1-dev libudev-dev
+
       - name: Checkout
         uses: actions/checkout@v2
 
@@ -84,3 +89,4 @@ jobs:
           files: |
             target/release/modality-trace-recorder-importer
             target/release/modality-trace-recorder-tcp-collector
+            target/release/modality-trace-recorder-itm-collector
