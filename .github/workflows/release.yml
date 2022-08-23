@@ -10,7 +10,7 @@ jobs:
   check:
     timeout-minutes: 30
     name: Check Signed Tag
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     outputs:
       stringver: ${{ steps.contentrel.outputs.stringver }}
 
@@ -38,7 +38,7 @@ jobs:
   package:
     name: Build Release Package
     timeout-minutes: 60
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     needs: [check]
     steps:
       - name: Print version
