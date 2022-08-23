@@ -58,7 +58,7 @@ pub enum CommonTimelineAttrKey {
     IsrChainingThreshold,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 pub enum CommonEventAttrKey {
     #[display(fmt = "event.name")]
     Name,
@@ -121,4 +121,6 @@ pub enum CommonEventAttrKey {
     UserArg13,
     #[display(fmt = "event.arg14")]
     UserArg14,
+    #[display(fmt = "event.{_0}")]
+    CustomUserArg(String),
 }

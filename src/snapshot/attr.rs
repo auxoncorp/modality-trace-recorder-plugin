@@ -78,7 +78,7 @@ impl TimelineAttrKey {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 pub enum EventAttrKey {
     #[display(fmt = "{_0}")]
     Common(CommonEventAttrKey),

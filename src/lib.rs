@@ -6,7 +6,10 @@ pub use client::Client;
 pub use context::{ContextHandle, ContextSwitchOutcome};
 pub use import::ImportProtocol;
 pub use interruptor::Interruptor;
-pub use opts::{ReflectorOpts, RenameMap, RenameMapItem, TraceRecorderOpts};
+pub use opts::{
+    FormatArgAttributeKeysItem, FormatArgAttributeKeysSet, ReflectorOpts, RenameMap, RenameMapItem,
+    TraceRecorderOpts,
+};
 pub use snapshot::SnapshotFile;
 pub use trace_recorder::{NanosecondsExt, TimelineDetails, TraceRecorderConfig, TraceRecorderExt};
 

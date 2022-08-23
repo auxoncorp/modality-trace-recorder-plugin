@@ -1,7 +1,7 @@
 use crate::auth::{AuthTokenBytes, AuthTokenError};
 use clap::Parser;
 use derive_more::Deref;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::str::FromStr;
 use url::Url;
 use uuid::Uuid;
@@ -99,6 +99,18 @@ pub struct TraceRecorderOpts {
     )]
     pub user_event_format_string_name: Vec<RenameMapItem>,
 
+    /// Use custom attribute keys instead of the default 'argN' keys
+    /// for user events matching the given channel and format string.
+    /// Can be supplied multiple times.
+    ///
+    /// Format is '<channel>:<format-string>:<attr-key>[,<attr-key>]'.
+    #[clap(
+        long,
+        name = "channel>:<format-string>:<attr-key>[,<attr-key>]",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub user_event_fmt_arg_attr_keys: Vec<FormatArgAttributeKeysItem>,
+
     /// Use a single timeline for all tasks instead of a timeline per task.
     /// ISRs can still be represented with their own timelines or not
     #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
@@ -123,6 +135,7 @@ impl ReflectorOpts {
     }
 }
 
+/// A map of trace recorder USER_EVENT channels to Modality event names
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref)]
 pub struct RenameMap(pub BTreeMap<String, String>);
 
@@ -132,13 +145,13 @@ impl FromIterator<RenameMapItem> for RenameMap {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default)]
+/// A trace recorder USER_EVENT channel to Modality event name
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub struct RenameMapItem(String, String);
 
 impl FromStr for RenameMapItem {
     type Err = String;
 
-    // <in-name>:<out-name>
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let err_msg = |input: &str| {
             format!("Invalid rename map item '{input}', use the supported format '<input-name>:<output-name>'")
@@ -151,5 +164,96 @@ impl FromStr for RenameMapItem {
             return Err(err_msg(s));
         }
         Ok(Self(tokens[0].to_string(), tokens[1].to_string()))
+    }
+}
+
+/// A set of trace recorder USER_EVENT channel and format string match pairs and
+/// Modality event attribute keys
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref)]
+pub struct FormatArgAttributeKeysSet(pub BTreeSet<FormatArgAttributeKeysItem>);
+
+impl FormatArgAttributeKeysSet {
+    pub(crate) fn arg_attr_keys(&self, channel: &str, format_string: &str) -> Option<&[String]> {
+        self.0.iter().find_map(|f| {
+            if f.channel == channel && f.format_string == format_string {
+                Some(f.arg_attr_keys.as_slice())
+            } else {
+                None
+            }
+        })
+    }
+}
+
+impl FromIterator<FormatArgAttributeKeysItem> for FormatArgAttributeKeysSet {
+    fn from_iter<T: IntoIterator<Item = FormatArgAttributeKeysItem>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+/// A trace recorder USER_EVENT channel and format string match pair and
+/// Modality event attribute keys
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub struct FormatArgAttributeKeysItem {
+    channel: String,
+    format_string: String,
+    arg_attr_keys: Vec<String>,
+}
+
+impl FromStr for FormatArgAttributeKeysItem {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let err_msg = |input: &str| {
+            format!("Invalid format string argument attribute key item '{input}', use the supported format '<channel>:<format-string>:<attr-key>[,<attr-key>]'")
+        };
+        let tokens: Vec<&str> = s.split(':').collect();
+        if tokens.len() != 3 {
+            return Err(err_msg(s));
+        }
+        if tokens.iter().any(|t| t.is_empty()) {
+            return Err(err_msg(s));
+        }
+
+        let arg_attr_keys: Vec<&str> = tokens[2].split(',').map(|s| s.trim()).collect();
+        if arg_attr_keys.iter().any(|t| t.is_empty()) {
+            return Err(err_msg(s));
+        }
+
+        Ok(Self {
+            channel: tokens[0].to_owned(),
+            format_string: tokens[1].to_owned(),
+            arg_attr_keys: arg_attr_keys.into_iter().map(|s| s.to_owned()).collect(),
+        })
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn rename_map() {
+        assert_eq!(
+            RenameMapItem::from_str("channel-foo:MY_FOO_EVENT"),
+            Ok(RenameMapItem(
+                "channel-foo".to_owned(),
+                "MY_FOO_EVENT".to_owned()
+            ))
+        );
+        assert!(RenameMapItem::from_str(":MY_FOO_EVENT").is_err());
+        assert!(RenameMapItem::from_str("channel-foo:").is_err());
+        assert!(RenameMapItem::from_str(":").is_err());
+    }
+
+    #[test]
+    fn fmt_arg_attr_keys_set() {
+        assert_eq!(
+            FormatArgAttributeKeysItem::from_str("foo-ch:%u %d %bu:my_arg0,bar,baz"),
+            Ok(FormatArgAttributeKeysItem {
+                channel: "foo-ch".to_owned(),
+                format_string: "%u %d %bu".to_owned(),
+                arg_attr_keys: vec!["my_arg0".to_owned(), "bar".to_owned(), "baz".to_owned()],
+            })
+        );
     }
 }

@@ -34,6 +34,9 @@ pub enum Error {
     )]
     ExceededMaxUserEventArgs,
 
+    #[error("The user event format string '{0}' argument count doesn't match the provided custom attribute key set '{1:?}'")]
+    FmtArgAttrKeysCountMismatch(String, Vec<String>),
+
     #[error(transparent)]
     TraceRecorder(#[from] crate::trace_recorder::Error),
 
@@ -89,6 +92,8 @@ pub async fn import<R: Read + Seek + Send>(
     }
 }
 
+// TODO - factor out the common event attr handling between import_snapshot and import_streaming
+// to de-dup things
 pub async fn import_snapshot<R: Read + Seek + Send>(
     mut r: R,
     cfg: TraceRecorderConfig,
@@ -268,24 +273,46 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                         .await?,
                     ev.formatted_string.to_string().into(),
                 );
+
+                let custom_arg_keys = cfg
+                    .user_event_fmt_arg_attr_keys
+                    .arg_attr_keys(ev.channel.as_str(), &ev.format_string);
+                if let Some(custom_arg_keys) = custom_arg_keys {
+                    if custom_arg_keys.len() != ev.args.len() {
+                        return Err(Error::FmtArgAttrKeysCountMismatch(
+                            ev.format_string.into(),
+                            custom_arg_keys.to_vec(),
+                        ));
+                    }
+                }
+
                 for (idx, arg) in ev.args.iter().enumerate() {
-                    let key = match idx {
-                        0 => importer.event_key(CommonEventAttrKey::UserArg0).await?,
-                        1 => importer.event_key(CommonEventAttrKey::UserArg1).await?,
-                        2 => importer.event_key(CommonEventAttrKey::UserArg2).await?,
-                        3 => importer.event_key(CommonEventAttrKey::UserArg3).await?,
-                        4 => importer.event_key(CommonEventAttrKey::UserArg4).await?,
-                        5 => importer.event_key(CommonEventAttrKey::UserArg5).await?,
-                        6 => importer.event_key(CommonEventAttrKey::UserArg6).await?,
-                        7 => importer.event_key(CommonEventAttrKey::UserArg7).await?,
-                        8 => importer.event_key(CommonEventAttrKey::UserArg8).await?,
-                        9 => importer.event_key(CommonEventAttrKey::UserArg9).await?,
-                        10 => importer.event_key(CommonEventAttrKey::UserArg10).await?,
-                        11 => importer.event_key(CommonEventAttrKey::UserArg11).await?,
-                        12 => importer.event_key(CommonEventAttrKey::UserArg12).await?,
-                        13 => importer.event_key(CommonEventAttrKey::UserArg13).await?,
-                        14 => importer.event_key(CommonEventAttrKey::UserArg14).await?,
-                        _ => return Err(Error::ExceededMaxUserEventArgs),
+                    let key = if let Some(custom_arg_keys) = custom_arg_keys {
+                        // SAFETY: len checked above
+                        importer
+                            .event_key(CommonEventAttrKey::CustomUserArg(
+                                custom_arg_keys[idx].clone(),
+                            ))
+                            .await?
+                    } else {
+                        match idx {
+                            0 => importer.event_key(CommonEventAttrKey::UserArg0).await?,
+                            1 => importer.event_key(CommonEventAttrKey::UserArg1).await?,
+                            2 => importer.event_key(CommonEventAttrKey::UserArg2).await?,
+                            3 => importer.event_key(CommonEventAttrKey::UserArg3).await?,
+                            4 => importer.event_key(CommonEventAttrKey::UserArg4).await?,
+                            5 => importer.event_key(CommonEventAttrKey::UserArg5).await?,
+                            6 => importer.event_key(CommonEventAttrKey::UserArg6).await?,
+                            7 => importer.event_key(CommonEventAttrKey::UserArg7).await?,
+                            8 => importer.event_key(CommonEventAttrKey::UserArg8).await?,
+                            9 => importer.event_key(CommonEventAttrKey::UserArg9).await?,
+                            10 => importer.event_key(CommonEventAttrKey::UserArg10).await?,
+                            11 => importer.event_key(CommonEventAttrKey::UserArg11).await?,
+                            12 => importer.event_key(CommonEventAttrKey::UserArg12).await?,
+                            13 => importer.event_key(CommonEventAttrKey::UserArg13).await?,
+                            14 => importer.event_key(CommonEventAttrKey::UserArg14).await?,
+                            _ => return Err(Error::ExceededMaxUserEventArgs),
+                        }
                     };
                     attrs.insert(key, arg_to_attr_val(arg));
                 }
@@ -513,24 +540,46 @@ pub async fn import_streaming<R: Read + Send>(
                         .await?,
                     ev.formatted_string.to_string().into(),
                 );
+
+                let custom_arg_keys = cfg
+                    .user_event_fmt_arg_attr_keys
+                    .arg_attr_keys(ev.channel.as_str(), &ev.format_string);
+                if let Some(custom_arg_keys) = custom_arg_keys {
+                    if custom_arg_keys.len() != ev.args.len() {
+                        return Err(Error::FmtArgAttrKeysCountMismatch(
+                            ev.format_string.into(),
+                            custom_arg_keys.to_vec(),
+                        ));
+                    }
+                }
+
                 for (idx, arg) in ev.args.iter().enumerate() {
-                    let key = match idx {
-                        0 => importer.event_key(CommonEventAttrKey::UserArg0).await?,
-                        1 => importer.event_key(CommonEventAttrKey::UserArg1).await?,
-                        2 => importer.event_key(CommonEventAttrKey::UserArg2).await?,
-                        3 => importer.event_key(CommonEventAttrKey::UserArg3).await?,
-                        4 => importer.event_key(CommonEventAttrKey::UserArg4).await?,
-                        5 => importer.event_key(CommonEventAttrKey::UserArg5).await?,
-                        6 => importer.event_key(CommonEventAttrKey::UserArg6).await?,
-                        7 => importer.event_key(CommonEventAttrKey::UserArg7).await?,
-                        8 => importer.event_key(CommonEventAttrKey::UserArg8).await?,
-                        9 => importer.event_key(CommonEventAttrKey::UserArg9).await?,
-                        10 => importer.event_key(CommonEventAttrKey::UserArg10).await?,
-                        11 => importer.event_key(CommonEventAttrKey::UserArg11).await?,
-                        12 => importer.event_key(CommonEventAttrKey::UserArg12).await?,
-                        13 => importer.event_key(CommonEventAttrKey::UserArg13).await?,
-                        14 => importer.event_key(CommonEventAttrKey::UserArg14).await?,
-                        _ => return Err(Error::ExceededMaxUserEventArgs),
+                    let key = if let Some(custom_arg_keys) = custom_arg_keys {
+                        // SAFETY: len checked above
+                        importer
+                            .event_key(CommonEventAttrKey::CustomUserArg(
+                                custom_arg_keys[idx].clone(),
+                            ))
+                            .await?
+                    } else {
+                        match idx {
+                            0 => importer.event_key(CommonEventAttrKey::UserArg0).await?,
+                            1 => importer.event_key(CommonEventAttrKey::UserArg1).await?,
+                            2 => importer.event_key(CommonEventAttrKey::UserArg2).await?,
+                            3 => importer.event_key(CommonEventAttrKey::UserArg3).await?,
+                            4 => importer.event_key(CommonEventAttrKey::UserArg4).await?,
+                            5 => importer.event_key(CommonEventAttrKey::UserArg5).await?,
+                            6 => importer.event_key(CommonEventAttrKey::UserArg6).await?,
+                            7 => importer.event_key(CommonEventAttrKey::UserArg7).await?,
+                            8 => importer.event_key(CommonEventAttrKey::UserArg8).await?,
+                            9 => importer.event_key(CommonEventAttrKey::UserArg9).await?,
+                            10 => importer.event_key(CommonEventAttrKey::UserArg10).await?,
+                            11 => importer.event_key(CommonEventAttrKey::UserArg11).await?,
+                            12 => importer.event_key(CommonEventAttrKey::UserArg12).await?,
+                            13 => importer.event_key(CommonEventAttrKey::UserArg13).await?,
+                            14 => importer.event_key(CommonEventAttrKey::UserArg14).await?,
+                            _ => return Err(Error::ExceededMaxUserEventArgs),
+                        }
                     };
                     attrs.insert(key, arg_to_attr_val(arg));
                 }

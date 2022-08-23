@@ -1,4 +1,7 @@
-use crate::{AttrKeyIndex, Client, ContextHandle, ReflectorOpts, RenameMap, TraceRecorderOpts};
+use crate::{
+    AttrKeyIndex, Client, ContextHandle, FormatArgAttributeKeysSet, ReflectorOpts, RenameMap,
+    TraceRecorderOpts,
+};
 use async_trait::async_trait;
 use modality_ingest_client::{
     types::{AttrKey, AttrVal, Nanoseconds},
@@ -39,6 +42,7 @@ pub struct TraceRecorderConfig {
     pub tr_opts: TraceRecorderOpts,
     pub user_event_channel_rename_map: RenameMap,
     pub user_event_format_string_rename_map: RenameMap,
+    pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
 }
 
 impl From<(ReflectorOpts, TraceRecorderOpts)> for TraceRecorderConfig {
@@ -54,11 +58,17 @@ impl From<(ReflectorOpts, TraceRecorderOpts)> for TraceRecorderConfig {
             .clone()
             .into_iter()
             .collect();
+        let user_event_fmt_arg_attr_keys = tr_opts
+            .user_event_fmt_arg_attr_keys
+            .clone()
+            .into_iter()
+            .collect();
         Self {
             rf_opts,
             tr_opts,
             user_event_channel_rename_map,
             user_event_format_string_rename_map,
+            user_event_fmt_arg_attr_keys,
         }
     }
 }
