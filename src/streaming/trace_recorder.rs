@@ -5,6 +5,7 @@ use crate::{
     TraceRecorderConfig, TraceRecorderExt,
 };
 use async_trait::async_trait;
+use derive_more::Display;
 use modality_ingest_client::types::{AttrKey, AttrVal};
 use std::collections::HashMap;
 use trace_recorder_parser::streaming::RecorderData;
@@ -31,10 +32,14 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             .map(|ste| ste.symbol.to_string());
         let (name, description) = match handle {
             ContextHandle::Task(task_handle) => {
-                let obj_class = obj_class.ok_or(Error::IsrPropertiesLookup(task_handle))?;
                 let obj_name = obj_name.ok_or(Error::TaskPropertiesLookup(task_handle))?;
-                let name = object_name(obj_name, obj_class, task_handle);
-                let desc = format!("{} {} '{}'", self.header.kernel_port, obj_class, name);
+                let name = object_name(obj_name, obj_class.into(), task_handle);
+                let desc = format!(
+                    "{} {} '{}'",
+                    self.header.kernel_port,
+                    MaybeUnknownObjectClass::from(obj_class),
+                    name
+                );
 
                 let is_startup_task = name == STARTUP_TASK_NAME;
                 match startup_task_name {
@@ -45,10 +50,14 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                 }
             }
             ContextHandle::Isr(isr_handle) => {
-                let obj_class = obj_class.ok_or(Error::IsrPropertiesLookup(isr_handle))?;
                 let obj_name = obj_name.ok_or(Error::IsrPropertiesLookup(isr_handle))?;
-                let name = object_name(obj_name, obj_class, isr_handle);
-                let desc = format!("{} {} '{}'", self.header.kernel_port, obj_class, name);
+                let name = object_name(obj_name, obj_class.into(), isr_handle);
+                let desc = format!(
+                    "{} {} '{}'",
+                    self.header.kernel_port,
+                    MaybeUnknownObjectClass::from(obj_class),
+                    name
+                );
                 (name, desc)
             }
         };
@@ -122,9 +131,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                 TimelineAttrKey::TickRateHz => {
                     AttrVal::Integer(self.ts_config_event.tick_rate_hz.into())
                 }
-                TimelineAttrKey::HwTcType => {
-                    AttrVal::Integer(self.ts_config_event.hwtc_type.into())
-                }
+                TimelineAttrKey::HwTcType => self.ts_config_event.hwtc_type.to_string().into(),
                 TimelineAttrKey::HtcPeriod => {
                     if let Some(htc_period) = self.ts_config_event.htc_period {
                         AttrVal::Integer(htc_period.into())
@@ -139,10 +146,33 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
     }
 }
 
-fn object_name(name: String, class: ObjectClass, handle: ObjectHandle) -> String {
+fn object_name(name: String, class: MaybeUnknownObjectClass, handle: ObjectHandle) -> String {
     if name.is_empty() {
         format!("{}:{}:{}", UNNAMED_OBJECT, class, handle)
     } else {
         name
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+enum MaybeUnknownObjectClass {
+    #[display(fmt = "Object")]
+    Unknown,
+    #[display(fmt = "{_0}")]
+    Known(ObjectClass),
+}
+
+impl From<ObjectClass> for MaybeUnknownObjectClass {
+    fn from(c: ObjectClass) -> Self {
+        MaybeUnknownObjectClass::Known(c)
+    }
+}
+
+impl From<Option<ObjectClass>> for MaybeUnknownObjectClass {
+    fn from(c: Option<ObjectClass>) -> Self {
+        match c {
+            Some(c) => MaybeUnknownObjectClass::Known(c),
+            None => MaybeUnknownObjectClass::Unknown,
+        }
     }
 }
