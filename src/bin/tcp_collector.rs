@@ -11,6 +11,7 @@ use tracing::debug;
 
 /// Collect trace recorder streaming protocol data from a TCP connection
 #[derive(Parser, Debug, Clone)]
+#[clap(version)]
 pub struct Opts {
     #[clap(flatten)]
     pub rf_opts: ReflectorOpts,

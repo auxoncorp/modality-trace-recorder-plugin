@@ -11,6 +11,7 @@ use tracing::debug;
 
 /// Import trace recorder data from a file
 #[derive(Parser, Debug, Clone)]
+#[clap(version)]
 pub struct Opts {
     #[clap(flatten)]
     pub rf_opts: ReflectorOpts,

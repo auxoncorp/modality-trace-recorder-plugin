@@ -17,6 +17,7 @@ use tracing::{debug, warn};
 
 /// Collect trace recorder streaming protocol data from ITM packets via SWO
 #[derive(Parser, Debug, Clone)]
+#[clap(version)]
 struct Opts {
     #[clap(flatten)]
     pub rf_opts: ReflectorOpts,
