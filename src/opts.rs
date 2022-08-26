@@ -128,6 +128,10 @@ pub struct TraceRecorderOpts {
     #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
     pub flatten_isr_timelines: bool,
 
+    /// Don't synthesize interactions between tasks and ISRs when a context switch occurs
+    #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
+    pub disable_task_interactions: bool,
+
     /// Use the provided initial startup task name instead of the default ('(startup)')
     #[clap(
         long,

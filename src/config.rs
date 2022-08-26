@@ -46,6 +46,7 @@ pub struct PluginConfig {
     pub startup_task_name: Option<String>,
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
+    pub disable_task_interactions: bool,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
     pub user_event_channel_rename_map: RenameMap,
@@ -209,6 +210,11 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.flatten_isr_timelines
             },
+            disable_task_interactions: if tr_opts.disable_task_interactions {
+                true
+            } else {
+                cfg_plugin.disable_task_interactions
+            },
             user_event_channel: if tr_opts.user_event_channel {
                 true
             } else {
@@ -283,6 +289,7 @@ mod internal {
         pub startup_task_name: Option<String>,
         pub single_task_timeline: bool,
         pub flatten_isr_timelines: bool,
+        pub disable_task_interactions: bool,
         pub user_event_channel: bool,
         pub user_event_format_string: bool,
         #[serde(rename = "user-event-channel-name")]
@@ -300,6 +307,7 @@ mod internal {
                 startup_task_name: c.startup_task_name,
                 single_task_timeline: c.single_task_timeline,
                 flatten_isr_timelines: c.flatten_isr_timelines,
+                disable_task_interactions: c.disable_task_interactions,
                 user_event_channel: c.user_event_channel,
                 user_event_format_string: c.user_event_format_string,
                 user_event_channel_rename_map: c.user_event_channel_rename_map,
@@ -444,6 +452,7 @@ user-event-channel = true
 user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
+disable-task-interactions = true
 protocol = 'snapshot'
 file = '/path/to/memdump.bin'
 
@@ -475,6 +484,7 @@ user-event-channel = true
 user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
+disable-task-interactions = true
 disable-control-plane = true
 restart = true
 connect-timeout = "100ms"
@@ -509,6 +519,7 @@ user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
 disable-control-plane = true
+disable-task-interactions = true
 restart = true
 elf-file = '/path/to/elf.elf'
 command-data-addr = 1234
@@ -604,6 +615,7 @@ reset = true
                     startup_task_name: "m3".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
+                    disable_task_interactions: true,
                     user_event_channel: true,
                     user_event_format_string: true,
                     user_event_channel_rename_map: vec![RenameMapItem {
@@ -709,6 +721,7 @@ reset = true
                     startup_task_name: "m4".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
+                    disable_task_interactions: true,
                     user_event_channel: true,
                     user_event_format_string: true,
                     user_event_channel_rename_map: vec![RenameMapItem {
@@ -816,6 +829,7 @@ reset = true
                     startup_task_name: "m5".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
+                    disable_task_interactions: true,
                     user_event_channel: true,
                     user_event_format_string: true,
                     user_event_channel_rename_map: vec![RenameMapItem {

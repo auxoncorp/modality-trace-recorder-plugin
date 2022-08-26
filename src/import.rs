@@ -192,18 +192,20 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                 match importer.context_switch_in(ev.into(), &trd).await? {
                     ContextSwitchOutcome::Same => (),
                     ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                        attrs.insert(
-                            importer
-                                .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                .await?,
-                            AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                        );
-                        attrs.insert(
-                            importer
-                                .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                .await?,
-                            AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                        );
+                        if !cfg.plugin.disable_task_interactions {
+                            attrs.insert(
+                                importer
+                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                    .await?,
+                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                            );
+                            attrs.insert(
+                                importer
+                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                    .await?,
+                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
+                            );
+                        }
                     }
                 }
             }
@@ -232,18 +234,22 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                     match importer.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                    .await?,
-                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                            );
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                    .await?,
-                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                            );
+                            if !cfg.plugin.disable_task_interactions {
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                        .await?,
+                                    AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                                );
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                        .await?,
+                                    AttrVal::Timestamp(
+                                        frequency.lossy_timestamp_ns(remote_timestamp),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
@@ -460,18 +466,22 @@ pub async fn import_streaming<R: Read + Send>(
                     match importer.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                    .await?,
-                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                            );
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                    .await?,
-                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                            );
+                            if !cfg.plugin.disable_task_interactions {
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                        .await?,
+                                    AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                                );
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                        .await?,
+                                    AttrVal::Timestamp(
+                                        frequency.lossy_timestamp_ns(remote_timestamp),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
@@ -500,18 +510,22 @@ pub async fn import_streaming<R: Read + Send>(
                     match importer.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                    .await?,
-                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                            );
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                    .await?,
-                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                            );
+                            if !cfg.plugin.disable_task_interactions {
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                        .await?,
+                                    AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                                );
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                        .await?,
+                                    AttrVal::Timestamp(
+                                        frequency.lossy_timestamp_ns(remote_timestamp),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
