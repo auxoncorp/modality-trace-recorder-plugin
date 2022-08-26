@@ -42,19 +42,19 @@ pub enum CommonTimelineAttrKey {
     #[display(fmt = "timeline.time_resolution")]
     TimeResolution,
 
-    #[display(fmt = "timeline.internal.trace-recorder.protocol")]
+    #[display(fmt = "timeline.internal.trace_recorder.protocol")]
     Protocol,
-    #[display(fmt = "timeline.internal.trace-recorder.kernel.version")]
+    #[display(fmt = "timeline.internal.trace_recorder.kernel.version")]
     KernelVersion,
-    #[display(fmt = "timeline.internal.trace-recorder.kernel.port")]
+    #[display(fmt = "timeline.internal.trace_recorder.kernel.port")]
     KernelPort,
-    #[display(fmt = "timeline.internal.trace-recorder.endianness")]
+    #[display(fmt = "timeline.internal.trace_recorder.endianness")]
     Endianness,
-    #[display(fmt = "timeline.internal.trace-recorder.irq_priority_order")]
+    #[display(fmt = "timeline.internal.trace_recorder.irq_priority_order")]
     IrqPriorityOrder,
-    #[display(fmt = "timeline.internal.trace-recorder.frequency")]
+    #[display(fmt = "timeline.internal.trace_recorder.frequency")]
     Frequency,
-    #[display(fmt = "timeline.internal.trace-recorder.isr_tail_chaining_threshold")]
+    #[display(fmt = "timeline.internal.trace_recorder.isr_tail_chaining_threshold")]
     IsrChainingThreshold,
 }
 
@@ -69,21 +69,21 @@ pub enum CommonEventAttrKey {
     #[display(fmt = "event.interaction.remote_timestamp")]
     RemoteTimestamp,
 
-    #[display(fmt = "event.internal.trace-recorder.code")]
+    #[display(fmt = "event.internal.trace_recorder.code")]
     EventCode,
-    #[display(fmt = "event.internal.trace-recorder.type")]
+    #[display(fmt = "event.internal.trace_recorder.type")]
     EventType,
-    #[display(fmt = "event.internal.trace-recorder.timestamp.ticks")]
+    #[display(fmt = "event.internal.trace_recorder.timestamp.ticks")]
     TimestampTicks,
 
-    #[display(fmt = "event.internal.trace-recorder.isr.name")]
+    #[display(fmt = "event.internal.trace_recorder.isr.name")]
     IsrName,
-    #[display(fmt = "event.internal.trace-recorder.isr.priority")]
+    #[display(fmt = "event.internal.trace_recorder.isr.priority")]
     IsrPriority,
 
-    #[display(fmt = "event.internal.trace-recorder.task.name")]
+    #[display(fmt = "event.internal.trace_recorder.task.name")]
     TaskName,
-    #[display(fmt = "event.internal.trace-recorder.task.priority")]
+    #[display(fmt = "event.internal.trace_recorder.task.priority")]
     TaskPriority,
 
     // User events are more important so we surface the attrs at the top level
