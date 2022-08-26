@@ -1,13 +1,22 @@
-use crate::auth::{AuthTokenBytes, AuthTokenError};
 use clap::Parser;
 use derive_more::Deref;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::str::FromStr;
 use url::Url;
 use uuid::Uuid;
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Default)]
 pub struct ReflectorOpts {
+    /// Use configuration from file
+    #[clap(
+        long = "config",
+        name = "config file",
+        env = "MODALITY_REFLECTOR_CONFIG",
+        help_heading = "REFLECTOR CONFIGURATION"
+    )]
+    pub config_file: Option<PathBuf>,
+
     /// Modality auth token hex string used to authenticate with.
     /// Can also be provide via the MODALITY_AUTH_TOKEN environment variable.
     #[clap(
@@ -20,17 +29,16 @@ pub struct ReflectorOpts {
 
     /// The modalityd or modality-reflector ingest protocol parent service address
     ///
-    /// The default value uses the default reflector port 14188.
+    /// The default value is `modality-ingest://127.0.0.1:14188`.
     ///
     /// You can talk directly to the default ingest server port with
     /// `--ingest-protocol-parent-url modality-ingest://127.0.0.1:14182`
     #[clap(
         long = "ingest-protocol-parent-url",
         name = "URL",
-        default_value = "modality-ingest://127.0.0.1:14188",
         help_heading = "REFLECTOR CONFIGURATION"
     )]
-    pub protocol_parent_url: Url,
+    pub protocol_parent_url: Option<Url>,
 
     /// Allow insecure TLS
     #[clap(
@@ -53,7 +61,7 @@ pub struct ReflectorOpts {
     pub time_domain: Option<Uuid>,
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Default)]
 pub struct TraceRecorderOpts {
     /// Instead of 'USER_EVENT @ <task-name>', use the user event channel
     /// as the event name (<channel> @ <task-name>)
@@ -97,7 +105,7 @@ pub struct TraceRecorderOpts {
         name = "input-formatted-string>:<output-event-name",
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
-    pub user_event_format_string_name: Vec<RenameMapItem>,
+    pub user_event_formatted_string_name: Vec<RenameMapItem>,
 
     /// Use custom attribute keys instead of the default 'argN' keys
     /// for user events matching the given channel and format string.
@@ -129,32 +137,46 @@ pub struct TraceRecorderOpts {
     pub startup_task_name: Option<String>,
 }
 
-impl ReflectorOpts {
-    pub(crate) fn resolve_auth(&self) -> Result<AuthTokenBytes, AuthTokenError> {
-        AuthTokenBytes::resolve(self.auth_token.as_deref())
+/// A map of trace recorder USER_EVENT channels/format-strings to Modality event names
+#[derive(
+    Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref, serde::Deserialize,
+)]
+pub struct RenameMap(#[serde(default)] pub BTreeSet<RenameMapItem>);
+
+impl RenameMap {
+    pub fn get(&self, key: &str) -> Option<&str> {
+        self.0.iter().find_map(|m| {
+            if m.input == key {
+                Some(m.event_name.as_str())
+            } else {
+                None
+            }
+        })
     }
 }
-
-/// A map of trace recorder USER_EVENT channels to Modality event names
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref)]
-pub struct RenameMap(pub BTreeMap<String, String>);
 
 impl FromIterator<RenameMapItem> for RenameMap {
     fn from_iter<T: IntoIterator<Item = RenameMapItem>>(iter: T) -> Self {
-        Self(iter.into_iter().map(|i| (i.0, i.1)).collect())
+        Self(iter.into_iter().collect())
     }
 }
 
-/// A trace recorder USER_EVENT channel to Modality event name
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub struct RenameMapItem(String, String);
+// TODO - refactor this to be a map, key is input
+/// A trace recorder USER_EVENT channel/format-string to Modality event name
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct RenameMapItem {
+    #[serde(alias = "channel", alias = "formatted-string")]
+    pub(crate) input: String,
+    pub(crate) event_name: String,
+}
 
 impl FromStr for RenameMapItem {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let err_msg = |input: &str| {
-            format!("Invalid rename map item '{input}', use the supported format '<input-name>:<output-name>'")
+            format!("Invalid rename map item '{input}', use the supported format '<input-name>:<event-name>'")
         };
         let tokens: Vec<&str> = s.split(':').collect();
         if tokens.len() != 2 {
@@ -163,14 +185,20 @@ impl FromStr for RenameMapItem {
         if tokens.iter().any(|t| t.is_empty()) {
             return Err(err_msg(s));
         }
-        Ok(Self(tokens[0].to_string(), tokens[1].to_string()))
+        Ok(Self {
+            input: tokens[0].to_string(),
+            event_name: tokens[1].to_string(),
+        })
     }
 }
 
+// TODO - refactor this to be a map, key is (channel, format_string)
 /// A set of trace recorder USER_EVENT channel and format string match pairs and
 /// Modality event attribute keys
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref)]
-pub struct FormatArgAttributeKeysSet(pub BTreeSet<FormatArgAttributeKeysItem>);
+#[derive(
+    Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref, serde::Deserialize,
+)]
+pub struct FormatArgAttributeKeysSet(#[serde(default)] pub BTreeSet<FormatArgAttributeKeysItem>);
 
 impl FormatArgAttributeKeysSet {
     pub(crate) fn arg_attr_keys(&self, channel: &str, format_string: &str) -> Option<&[String]> {
@@ -192,11 +220,13 @@ impl FromIterator<FormatArgAttributeKeysItem> for FormatArgAttributeKeysSet {
 
 /// A trace recorder USER_EVENT channel and format string match pair and
 /// Modality event attribute keys
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct FormatArgAttributeKeysItem {
-    channel: String,
-    format_string: String,
-    arg_attr_keys: Vec<String>,
+    pub(crate) channel: String,
+    pub(crate) format_string: String,
+    #[serde(rename = "attribute-keys")]
+    pub(crate) arg_attr_keys: Vec<String>,
 }
 
 impl FromStr for FormatArgAttributeKeysItem {
@@ -235,10 +265,10 @@ mod test {
     fn rename_map() {
         assert_eq!(
             RenameMapItem::from_str("channel-foo:MY_FOO_EVENT"),
-            Ok(RenameMapItem(
-                "channel-foo".to_owned(),
-                "MY_FOO_EVENT".to_owned()
-            ))
+            Ok(RenameMapItem {
+                input: "channel-foo".to_owned(),
+                event_name: "MY_FOO_EVENT".to_owned()
+            })
         );
         assert!(RenameMapItem::from_str(":MY_FOO_EVENT").is_err());
         assert!(RenameMapItem::from_str("channel-foo:").is_err());

@@ -1,10 +1,7 @@
-use crate::{
-    AttrKeyIndex, Client, ContextHandle, FormatArgAttributeKeysSet, ReflectorOpts, RenameMap,
-    TraceRecorderOpts,
-};
+use crate::{AttrKeyIndex, Client, ContextHandle, TraceRecorderConfig};
 use async_trait::async_trait;
 use modality_ingest_client::{
-    types::{AttrKey, AttrVal, Nanoseconds},
+    types::{AttrVal, InternedAttrKey, Nanoseconds},
     IngestError,
 };
 use std::collections::HashMap;
@@ -34,43 +31,6 @@ pub enum Error {
 
     #[error("Encountered an ingest client error. {0}")]
     Ingest(#[from] IngestError),
-}
-
-#[derive(Clone, Debug)]
-pub struct TraceRecorderConfig {
-    pub rf_opts: ReflectorOpts,
-    pub tr_opts: TraceRecorderOpts,
-    pub user_event_channel_rename_map: RenameMap,
-    pub user_event_format_string_rename_map: RenameMap,
-    pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
-}
-
-impl From<(ReflectorOpts, TraceRecorderOpts)> for TraceRecorderConfig {
-    fn from(opts: (ReflectorOpts, TraceRecorderOpts)) -> Self {
-        let (rf_opts, tr_opts) = opts;
-        let user_event_channel_rename_map = tr_opts
-            .user_event_channel_name
-            .clone()
-            .into_iter()
-            .collect();
-        let user_event_format_string_rename_map = tr_opts
-            .user_event_format_string_name
-            .clone()
-            .into_iter()
-            .collect();
-        let user_event_fmt_arg_attr_keys = tr_opts
-            .user_event_fmt_arg_attr_keys
-            .clone()
-            .into_iter()
-            .collect();
-        Self {
-            rf_opts,
-            tr_opts,
-            user_event_channel_rename_map,
-            user_event_format_string_rename_map,
-            user_event_fmt_arg_attr_keys,
-        }
-    }
 }
 
 pub trait NanosecondsExt {
@@ -118,5 +78,5 @@ pub trait TraceRecorderExt<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
         &self,
         cfg: &TraceRecorderConfig,
         client: &mut Client<TAK, EAK>,
-    ) -> Result<HashMap<AttrKey, AttrVal>, Error>;
+    ) -> Result<HashMap<InternedAttrKey, AttrVal>, Error>;
 }

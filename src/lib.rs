@@ -3,6 +3,7 @@
 pub use attr::{AttrKeyIndex, AttrKeys, CommonEventAttrKey, CommonTimelineAttrKey};
 pub use auth::AuthTokenBytes;
 pub use client::Client;
+pub use config::{TraceRecorderConfig, TraceRecorderConfigEntry};
 pub use context::{ContextHandle, ContextSwitchOutcome};
 pub use import::ImportProtocol;
 pub use interruptor::Interruptor;
@@ -11,11 +12,12 @@ pub use opts::{
     TraceRecorderOpts,
 };
 pub use snapshot::SnapshotFile;
-pub use trace_recorder::{NanosecondsExt, TimelineDetails, TraceRecorderConfig, TraceRecorderExt};
+pub use trace_recorder::{NanosecondsExt, TimelineDetails, TraceRecorderExt};
 
 pub mod attr;
 pub mod auth;
 pub mod client;
+pub mod config;
 pub mod context;
 pub mod import;
 pub mod interruptor;

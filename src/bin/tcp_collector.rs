@@ -3,7 +3,7 @@
 use clap::Parser;
 use modality_trace_recorder_plugin::{
     import::import_streaming, streaming::Command, tracing::try_init_tracing_subscriber,
-    Interruptor, ReflectorOpts, TraceRecorderConfig, TraceRecorderOpts,
+    Interruptor, ReflectorOpts, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
@@ -48,13 +48,10 @@ pub struct Opts {
     pub connect_timeout: Option<humantime::Duration>,
 
     /// The remote address and port to connect to.
-    #[clap(
-        long,
-        name = "remote",
-        default_value = "127.0.0.1:8888",
-        help_heading = "STREAMING PORT CONFIGURATION"
-    )]
-    pub remote: SocketAddr,
+    ///
+    /// The default is `127.0.0.1:8888`.
+    #[clap(long, name = "remote", help_heading = "STREAMING PORT CONFIGURATION")]
+    pub remote: Option<SocketAddr>,
 }
 
 #[tokio::main]
@@ -95,14 +92,38 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    let mut stream = match opts.connect_timeout {
-        Some(to) if !to.is_zero() => {
-            debug!(remote = %opts.remote, timeout = %to, "Connecting to to remote");
-            TcpStream::connect_timeout(&opts.remote, to.into())?
+    let mut cfg = TraceRecorderConfig::load_merge_with_opts(
+        TraceRecorderConfigEntry::TcpCollector,
+        opts.rf_opts,
+        opts.tr_opts,
+    )?;
+    if opts.disable_control_plane {
+        cfg.plugin.tcp_collector.disable_control_plane = true;
+    }
+    if opts.restart {
+        cfg.plugin.tcp_collector.restart = true;
+    }
+    if let Some(to) = opts.connect_timeout {
+        cfg.plugin.tcp_collector.connect_timeout = Some(to.into());
+    }
+    if let Some(remote) = opts.remote {
+        cfg.plugin.tcp_collector.remote = Some(remote);
+    }
+
+    let remote = if let Some(remote) = cfg.plugin.tcp_collector.remote {
+        remote
+    } else {
+        "127.0.0.1:8888".parse()?
+    };
+
+    let mut stream = match cfg.plugin.tcp_collector.connect_timeout {
+        Some(to) if !to.0.is_zero() => {
+            debug!(remote = %remote, timeout = %to.0, "Connecting to to remote");
+            TcpStream::connect_timeout(&remote, to.0.into())?
         }
         _ => {
-            debug!(remote = %opts.remote, "Connecting to to remote");
-            TcpStream::connect(opts.remote)?
+            debug!(remote = %remote, "Connecting to to remote");
+            TcpStream::connect(remote)?
         }
     };
 
@@ -111,17 +132,17 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     stream.set_nodelay(true)?;
     stream.set_nonblocking(false)?;
 
-    if !opts.disable_control_plane {
-        if opts.restart {
+    if !cfg.plugin.tcp_collector.disable_control_plane {
+        if cfg.plugin.tcp_collector.restart {
             stream.write_all(&Command::Stop.to_le_bytes())?;
         }
         stream.write_all(&Command::Start.to_le_bytes())?;
     }
 
-    let config = TraceRecorderConfig::from((opts.rf_opts, opts.tr_opts));
+    let disable_control_plane = cfg.plugin.tcp_collector.disable_control_plane;
     let mut stream_clone = stream.try_clone()?;
     let mut join_handle =
-        tokio::spawn(async move { import_streaming(&mut stream_clone, config).await });
+        tokio::spawn(async move { import_streaming(&mut stream_clone, cfg).await });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
@@ -135,7 +156,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    if !opts.disable_control_plane {
+    if !disable_control_plane {
         stream.write_all(&Command::Stop.to_le_bytes())?;
     }
 

@@ -3,7 +3,7 @@
 use clap::Parser;
 use modality_trace_recorder_plugin::{
     import::import, tracing::try_init_tracing_subscriber, ImportProtocol, Interruptor,
-    ReflectorOpts, SnapshotFile, TraceRecorderConfig, TraceRecorderOpts,
+    ReflectorOpts, SnapshotFile, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::fs::File;
 use std::path::PathBuf;
@@ -43,7 +43,7 @@ pub struct Opts {
         name = "file path",
         help_heading = "PROTOCOL CONFIGURATION"
     )]
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -84,19 +84,31 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
+    let cfg = TraceRecorderConfig::load_merge_with_opts(
+        TraceRecorderConfigEntry::Importer,
+        opts.rf_opts,
+        opts.tr_opts,
+    )?;
+
     let protocol = if opts.snapshot {
         ImportProtocol::Snapshot
     } else if opts.streaming {
         ImportProtocol::Streaming
     } else {
-        ImportProtocol::Auto
+        cfg.plugin.import.protocol
     };
 
-    let config = TraceRecorderConfig::from((opts.rf_opts, opts.tr_opts));
+    let file_path = if let Some(p) = opts.path {
+        p
+    } else {
+        #[derive(Debug, thiserror::Error)]
+        #[error("Missing import file path. Either supply it as a positional argument at the CLI or a config file member 'file'")]
+        struct MissingFilePathError;
+        cfg.plugin.import.file.clone().ok_or(MissingFilePathError)?
+    };
 
-    let f = SnapshotFile::open(&opts.path)?;
-    let mut join_handle =
-        tokio::spawn(async move { import(File::from(f), protocol, config).await });
+    let f = SnapshotFile::open(&file_path)?;
+    let mut join_handle = tokio::spawn(async move { import(File::from(f), protocol, cfg).await });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {

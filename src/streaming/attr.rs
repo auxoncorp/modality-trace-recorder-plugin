@@ -5,7 +5,7 @@ use std::hash::Hash;
 impl AttrKeyIndex for TimelineAttrKey {}
 impl AttrKeyIndex for EventAttrKey {}
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 pub enum TimelineAttrKey {
     #[display(fmt = "{_0}")]
     Common(CommonTimelineAttrKey),

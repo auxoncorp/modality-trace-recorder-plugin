@@ -1,11 +1,13 @@
 use derive_more::Display;
-use modality_ingest_client::{types::AttrKey, BoundTimelineState, IngestClient, IngestError};
+use modality_ingest_client::{
+    types::InternedAttrKey, BoundTimelineState, IngestClient, IngestError,
+};
 use std::{collections::HashMap, fmt, hash::Hash};
 
 pub trait AttrKeyIndex: Hash + Eq + fmt::Display {}
 
 #[derive(Clone, Debug)]
-pub struct AttrKeys<T: AttrKeyIndex>(HashMap<T, AttrKey>);
+pub struct AttrKeys<T: AttrKeyIndex>(HashMap<T, InternedAttrKey>);
 
 impl<T: AttrKeyIndex> Default for AttrKeys<T> {
     fn default() -> Self {
@@ -18,18 +20,18 @@ impl<T: AttrKeyIndex> AttrKeys<T> {
         &mut self,
         client: &mut IngestClient<BoundTimelineState>,
         key: T,
-    ) -> Result<AttrKey, IngestError> {
+    ) -> Result<InternedAttrKey, IngestError> {
         if let Some(k) = self.0.get(&key) {
             Ok(*k)
         } else {
-            let interned_key = client.attr_key(key.to_string()).await?;
+            let interned_key = client.declare_attr_key(key.to_string()).await?;
             self.0.insert(key, interned_key);
             Ok(interned_key)
         }
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 pub enum CommonTimelineAttrKey {
     #[display(fmt = "timeline.name")]
     Name,
@@ -56,6 +58,8 @@ pub enum CommonTimelineAttrKey {
     Frequency,
     #[display(fmt = "timeline.internal.trace_recorder.isr_tail_chaining_threshold")]
     IsrChainingThreshold,
+    #[display(fmt = "timeline.{_0}")]
+    Custom(String),
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
@@ -85,6 +89,13 @@ pub enum CommonEventAttrKey {
     TaskName,
     #[display(fmt = "event.internal.trace_recorder.task.priority")]
     TaskPriority,
+
+    #[display(fmt = "event.internal.trace_recorder.memory.address")]
+    MemoryAddress,
+    #[display(fmt = "event.internal.trace_recorder.memory.size")]
+    MemorySize,
+    #[display(fmt = "event.internal.trace_recorder.memory.heap_counter")]
+    MemoryHeapCounter,
 
     // User events are more important so we surface the attrs at the top level
     #[display(fmt = "event.channel")]
