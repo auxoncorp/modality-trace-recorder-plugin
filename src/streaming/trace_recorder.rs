@@ -145,6 +145,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
         }
 
         for kv in cfg
+            .ingest
             .timeline_attributes
             .additional_timeline_attributes
             .iter()

@@ -2,9 +2,7 @@ use crate::auth::{AuthTokenBytes, AuthTokenError};
 use crate::import::ImportProtocol;
 use crate::opts::{FormatArgAttributeKeysSet, ReflectorOpts, RenameMap, TraceRecorderOpts};
 use derive_more::{Deref, From, Into};
-use modality_reflector_config::{
-    Config, PluginsIngestMember, TimelineAttributes, TomlValue, TopLevelIngest, CONFIG_ENV_VAR,
-};
+use modality_reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR};
 use serde::Deserialize;
 use std::env;
 use std::net::SocketAddr;
@@ -20,22 +18,10 @@ pub enum TraceRecorderConfigEntry {
     ItmCollector,
 }
 
-impl TraceRecorderConfigEntry {
-    fn member_name(&self) -> &'static str {
-        use TraceRecorderConfigEntry::*;
-        match self {
-            Importer => "trace-recorder",
-            TcpCollector => "trace-recorder-tcp",
-            ItmCollector => "trace-recorder-itm",
-        }
-    }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct TraceRecorderConfig {
     pub auth_token: Option<String>,
     pub ingest: TopLevelIngest,
-    pub timeline_attributes: TimelineAttributes,
     pub plugin: PluginConfig,
 }
 
@@ -175,26 +161,6 @@ impl TraceRecorderConfig {
             ingest.allow_insecure_tls = true;
         }
 
-        let timeline_attributes = match entry {
-            TraceRecorderConfigEntry::Importer => cfg
-                .plugins
-                .as_ref()
-                .and_then(|p| p.ingest.as_ref())
-                .and_then(|i| i.importers.get(entry.member_name())),
-            TraceRecorderConfigEntry::TcpCollector => cfg
-                .plugins
-                .as_ref()
-                .and_then(|p| p.ingest.as_ref())
-                .and_then(|i| i.collectors.get(entry.member_name())),
-            TraceRecorderConfigEntry::ItmCollector => cfg
-                .plugins
-                .as_ref()
-                .and_then(|p| p.ingest.as_ref())
-                .and_then(|i| i.collectors.get(entry.member_name())),
-        }
-        .map(|im| im.timeline_attributes.clone())
-        .unwrap_or_default();
-
         let cfg_plugin = PluginConfig::from_metadata(&cfg, entry)?;
         let plugin = PluginConfig {
             run_id: rf_opts.run_id.or(cfg_plugin.run_id),
@@ -259,7 +225,6 @@ impl TraceRecorderConfig {
         Ok(Self {
             auth_token: rf_opts.auth_token,
             ingest,
-            timeline_attributes,
             plugin,
         })
     }
@@ -382,43 +347,28 @@ mod internal {
 }
 
 impl PluginConfig {
-    fn from_metadata(
+    pub(crate) fn from_metadata(
         cfg: &Config,
         entry: TraceRecorderConfigEntry,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         use internal::{ImportPluginConfig, ItmCollectorPluginConfig, TcpCollectorPluginConfig};
         match entry {
-            TraceRecorderConfigEntry::Importer => cfg
-                .plugins
-                .as_ref()
-                .and_then(|p| p.ingest.as_ref())
-                .and_then(|i| i.importers.get(entry.member_name()))
-                .map(|c| Self::from_ingest_metadata::<ImportPluginConfig>(c).map(|c| c.into())),
-            TraceRecorderConfigEntry::TcpCollector => cfg
-                .plugins
-                .as_ref()
-                .and_then(|p| p.ingest.as_ref())
-                .and_then(|i| i.collectors.get(entry.member_name()))
-                .map(|c| {
-                    Self::from_ingest_metadata::<TcpCollectorPluginConfig>(c).map(|c| c.into())
-                }),
-            TraceRecorderConfigEntry::ItmCollector => cfg
-                .plugins
-                .as_ref()
-                .and_then(|p| p.ingest.as_ref())
-                .and_then(|i| i.collectors.get(entry.member_name()))
-                .map(|c| {
-                    Self::from_ingest_metadata::<ItmCollectorPluginConfig>(c).map(|c| c.into())
-                }),
+            TraceRecorderConfigEntry::Importer => {
+                Self::from_cfg_metadata::<ImportPluginConfig>(cfg).map(|c| c.into())
+            }
+            TraceRecorderConfigEntry::TcpCollector => {
+                Self::from_cfg_metadata::<TcpCollectorPluginConfig>(cfg).map(|c| c.into())
+            }
+            TraceRecorderConfigEntry::ItmCollector => {
+                Self::from_cfg_metadata::<ItmCollectorPluginConfig>(cfg).map(|c| c.into())
+            }
         }
-        .unwrap_or_else(|| Result::Ok(Self::default()))
     }
 
-    fn from_ingest_metadata<'a, T: Deserialize<'a>>(
-        ingest_member: &PluginsIngestMember,
+    fn from_cfg_metadata<'a, T: Deserialize<'a>>(
+        cfg: &Config,
     ) -> Result<T, Box<dyn std::error::Error>> {
-        let cfg =
-            TomlValue::Table(ingest_member.metadata.clone().into_iter().collect()).try_into()?;
+        let cfg = TomlValue::Table(cfg.metadata.clone().into_iter().collect()).try_into()?;
         Ok(cfg)
     }
 }
@@ -427,24 +377,20 @@ impl PluginConfig {
 mod test {
     use super::*;
     use crate::opts::{FormatArgAttributeKeysItem, RenameMapItem};
-    use modality_reflector_config::AttrKeyEqValuePair;
+    use modality_reflector_config::{AttrKeyEqValuePair, TimelineAttributes};
     use pretty_assertions::assert_eq;
     use std::{env, fs::File, io::Write};
 
-    const FULL_CONFIG: &str = r#"[ingest]
+    const IMPORT_CONFIG: &str = r#"[ingest]
 protocol-parent-url = 'modality-ingest://127.0.0.1:14182'
 additional-timeline-attributes = [
-    "ci_run=1"
-]
-
-[plugins.ingest.importers.trace-recorder]
-additional-timeline-attributes = [
+    "ci_run=1",
     "platform='FreeRTOS'",
     "module='m3'",
     "trc-mode='snapshot'",
 ]
 
-[plugins.ingest.importers.trace-recorder.metadata]
+[metadata]
 run-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1'
 time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1'
 startup-task-name = 'm3'
@@ -456,27 +402,30 @@ disable-task-interactions = true
 protocol = 'snapshot'
 file = '/path/to/memdump.bin'
 
-[plugins.ingest.collectors.trace-recorder-tcp]
+    [[metadata.user-event-fmt-arg-attr-keys]]
+    channel = 'stats'
+    format-string = '%s %u %d %u %u'
+    attribute-keys = ['task', 'stack_size', 'stack_high_water', 'task_run_time', 'total_run_time']
+
+    [[metadata.user-event-channel-name]]
+    channel = 'act-cmd'
+    event-name = 'MY_EVENT'
+
+    [[metadata.user-event-formatted-string-name]]
+    formatted-string = 'found 1 thing'
+    event-name = 'MY_EVENT2'
+"#;
+
+    const TCP_COLLECTOR_CONFIG: &str = r#"[ingest]
+protocol-parent-url = 'modality-ingest://127.0.0.1:14182'
 additional-timeline-attributes = [
+    "ci_run=1",
     "platform='FreeRTOS'",
     "module='m3'",
     "trc-mode='tcp'",
 ]
 
-    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
-    channel = 'stats'
-    format-string = '%s %u %d %u %u'
-    attribute-keys = ['task', 'stack_size', 'stack_high_water', 'task_run_time', 'total_run_time']
-
-    [[plugins.ingest.importers.trace-recorder.metadata.user-event-channel-name]]
-    channel = 'act-cmd'
-    event-name = 'MY_EVENT'
-
-    [[plugins.ingest.importers.trace-recorder.metadata.user-event-formatted-string-name]]
-    formatted-string = 'found 1 thing'
-    event-name = 'MY_EVENT2'
-
-[plugins.ingest.collectors.trace-recorder-tcp.metadata]
+[metadata]
 run-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2'
 time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2'
 startup-task-name = 'm4'
@@ -490,27 +439,30 @@ restart = true
 connect-timeout = "100ms"
 remote = "127.0.0.1:8888"
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-fmt-arg-attr-keys]]
+    [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
     format-string = '%s %u %d %u %u'
     attribute-keys = ['task', 'stack_size', 'stack_high_water', 'task_run_time', 'total_run_time']
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-channel-name]]
+    [[metadata.user-event-channel-name]]
     channel = 'act-cmd'
     event-name = 'MY_EVENT'
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-formatted-string-name]]
+    [[metadata.user-event-formatted-string-name]]
     formatted-string = 'found 1 thing'
     event-name = 'MY_EVENT2'
+"#;
 
-[plugins.ingest.collectors.trace-recorder-itm]
+    const ITM_COLLECTOR_CONFIG: &str = r#"[ingest]
+protocol-parent-url = 'modality-ingest://127.0.0.1:14182'
 additional-timeline-attributes = [
+    "ci_run=1",
     "platform='FreeRTOS'",
     "module='m3'",
     "trc-mode='itm'",
 ]
 
-[plugins.ingest.collectors.trace-recorder-itm.metadata]
+[metadata]
 run-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
 time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
 startup-task-name = 'm5'
@@ -534,16 +486,16 @@ clk = 222
 baud = 4444
 reset = true
 
-    [[plugins.ingest.collectors.trace-recorder-itm.metadata.user-event-fmt-arg-attr-keys]]
+    [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
     format-string = '%s %u %d %u %u'
     attribute-keys = ['task', 'stack_size', 'stack_high_water', 'task_run_time', 'total_run_time']
 
-    [[plugins.ingest.collectors.trace-recorder-itm.metadata.user-event-channel-name]]
+    [[metadata.user-event-channel-name]]
     channel = 'act-cmd'
     event-name = 'MY_EVENT'
 
-    [[plugins.ingest.collectors.trace-recorder-itm.metadata.user-event-formatted-string-name]]
+    [[metadata.user-event-formatted-string-name]]
     formatted-string = 'found 1 thing'
     event-name = 'MY_EVENT2'
 "#;
@@ -554,7 +506,7 @@ reset = true
         let path = dir.path().join("my_config.toml");
         {
             let mut f = File::create(&path).unwrap();
-            f.write_all(FULL_CONFIG.as_bytes()).unwrap();
+            f.write_all(IMPORT_CONFIG.as_bytes()).unwrap();
             f.flush().unwrap();
         }
 
@@ -589,21 +541,15 @@ reset = true
                     allow_insecure_tls: false,
                     protocol_child_port: None,
                     timeline_attributes: TimelineAttributes {
-                        additional_timeline_attributes: vec![AttrKeyEqValuePair::from_str(
-                            "ci_run=1"
-                        )
-                        .unwrap(),],
+                        additional_timeline_attributes: vec![
+                            AttrKeyEqValuePair::from_str("ci_run=1").unwrap(),
+                            AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
+                            AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
+                            AttrKeyEqValuePair::from_str("trc-mode='snapshot'").unwrap(),
+                        ],
                         override_timeline_attributes: Default::default(),
                     },
                     max_write_batch_staleness: None,
-                },
-                timeline_attributes: TimelineAttributes {
-                    additional_timeline_attributes: vec![
-                        AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
-                        AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
-                        AttrKeyEqValuePair::from_str("trc-mode='snapshot'").unwrap(),
-                    ],
-                    override_timeline_attributes: Default::default(),
                 },
                 plugin: PluginConfig {
                     run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1")
@@ -660,7 +606,7 @@ reset = true
         let path = dir.path().join("my_config.toml");
         {
             let mut f = File::create(&path).unwrap();
-            f.write_all(FULL_CONFIG.as_bytes()).unwrap();
+            f.write_all(TCP_COLLECTOR_CONFIG.as_bytes()).unwrap();
             f.flush().unwrap();
         }
 
@@ -695,21 +641,15 @@ reset = true
                     allow_insecure_tls: false,
                     protocol_child_port: None,
                     timeline_attributes: TimelineAttributes {
-                        additional_timeline_attributes: vec![AttrKeyEqValuePair::from_str(
-                            "ci_run=1"
-                        )
-                        .unwrap(),],
+                        additional_timeline_attributes: vec![
+                            AttrKeyEqValuePair::from_str("ci_run=1").unwrap(),
+                            AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
+                            AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
+                            AttrKeyEqValuePair::from_str("trc-mode='tcp'").unwrap(),
+                        ],
                         override_timeline_attributes: Default::default(),
                     },
                     max_write_batch_staleness: None,
-                },
-                timeline_attributes: TimelineAttributes {
-                    additional_timeline_attributes: vec![
-                        AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
-                        AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
-                        AttrKeyEqValuePair::from_str("trc-mode='tcp'").unwrap(),
-                    ],
-                    override_timeline_attributes: Default::default(),
                 },
                 plugin: PluginConfig {
                     run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2")
@@ -768,7 +708,7 @@ reset = true
         let path = dir.path().join("my_config.toml");
         {
             let mut f = File::create(&path).unwrap();
-            f.write_all(FULL_CONFIG.as_bytes()).unwrap();
+            f.write_all(ITM_COLLECTOR_CONFIG.as_bytes()).unwrap();
             f.flush().unwrap();
         }
 
@@ -803,21 +743,15 @@ reset = true
                     allow_insecure_tls: false,
                     protocol_child_port: None,
                     timeline_attributes: TimelineAttributes {
-                        additional_timeline_attributes: vec![AttrKeyEqValuePair::from_str(
-                            "ci_run=1"
-                        )
-                        .unwrap(),],
+                        additional_timeline_attributes: vec![
+                            AttrKeyEqValuePair::from_str("ci_run=1").unwrap(),
+                            AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
+                            AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
+                            AttrKeyEqValuePair::from_str("trc-mode='itm'").unwrap(),
+                        ],
                         override_timeline_attributes: Default::default(),
                     },
                     max_write_batch_staleness: None,
-                },
-                timeline_attributes: TimelineAttributes {
-                    additional_timeline_attributes: vec![
-                        AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
-                        AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
-                        AttrKeyEqValuePair::from_str("trc-mode='itm'").unwrap(),
-                    ],
-                    override_timeline_attributes: Default::default(),
                 },
                 plugin: PluginConfig {
                     run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
