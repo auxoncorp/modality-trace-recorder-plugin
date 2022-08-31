@@ -1,7 +1,6 @@
 use derive_more::Display;
-use modality_ingest_client::{
-    types::InternedAttrKey, BoundTimelineState, IngestClient, IngestError,
-};
+use modality_ingest_client::{BoundTimelineState, IngestClient, IngestError};
+use modality_ingest_protocol::InternedAttrKey;
 use std::{collections::HashMap, fmt, hash::Hash};
 
 pub trait AttrKeyIndex: Hash + Eq + fmt::Display {}

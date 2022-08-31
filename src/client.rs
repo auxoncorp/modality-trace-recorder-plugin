@@ -1,7 +1,6 @@
 use crate::attr::{AttrKeyIndex, AttrKeys};
-use modality_ingest_client::{
-    types::InternedAttrKey, BoundTimelineState, IngestClient, IngestError,
-};
+use modality_ingest_client::{BoundTimelineState, IngestClient, IngestError};
+use modality_ingest_protocol::InternedAttrKey;
 
 pub struct Client<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
     timeline_keys: AttrKeys<TAK>,

@@ -1,9 +1,8 @@
 use crate::{AttrKeyIndex, Client, ContextHandle, TraceRecorderConfig};
 use async_trait::async_trait;
-use modality_ingest_client::{
-    types::{AttrVal, InternedAttrKey, Nanoseconds},
-    IngestError,
-};
+use modality_api::{AttrVal, Nanoseconds};
+use modality_ingest_client::IngestError;
+use modality_ingest_protocol::InternedAttrKey;
 use std::collections::HashMap;
 use thiserror::Error;
 use trace_recorder_parser::{

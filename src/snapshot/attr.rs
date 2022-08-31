@@ -10,31 +10,31 @@ pub enum TimelineAttrKey {
     #[display(fmt = "{_0}")]
     Common(CommonTimelineAttrKey),
 
-    #[display(fmt = "timeline.internal.trace-recorder.minor_version")]
+    #[display(fmt = "timeline.internal.trace_recorder.minor_version")]
     MinorVersion,
-    #[display(fmt = "timeline.internal.trace-recorder.file_size")]
+    #[display(fmt = "timeline.internal.trace_recorder.file_size")]
     FileSize,
-    #[display(fmt = "timeline.internal.trace-recorder.num_events")]
+    #[display(fmt = "timeline.internal.trace_recorder.num_events")]
     NumEvents,
-    #[display(fmt = "timeline.internal.trace-recorder.max_events")]
+    #[display(fmt = "timeline.internal.trace_recorder.max_events")]
     MaxEvents,
-    #[display(fmt = "timeline.internal.trace-recorder.buffer_full")]
+    #[display(fmt = "timeline.internal.trace_recorder.buffer_full")]
     BufferFull,
-    #[display(fmt = "timeline.internal.trace-recorder.abs_time_last_event")]
+    #[display(fmt = "timeline.internal.trace_recorder.abs_time_last_event")]
     AbsTimeLastEvent,
-    #[display(fmt = "timeline.internal.trace-recorder.abs_time_last_event_second")]
+    #[display(fmt = "timeline.internal.trace_recorder.abs_time_last_event_second")]
     AbsTimeLastEventSecond,
-    #[display(fmt = "timeline.internal.trace-recorder.recorder_active")]
+    #[display(fmt = "timeline.internal.trace_recorder.recorder_active")]
     RecorderActive,
-    #[display(fmt = "timeline.internal.trace-recorder.heap_mem_usage")]
+    #[display(fmt = "timeline.internal.trace_recorder.heap_mem_usage")]
     HeapMemUsage,
-    #[display(fmt = "timeline.internal.trace-recorder.using_16bit_handles")]
+    #[display(fmt = "timeline.internal.trace_recorder.using_16bit_handles")]
     Using16bitHandles,
-    #[display(fmt = "timeline.internal.trace-recorder.float_encoding")]
+    #[display(fmt = "timeline.internal.trace_recorder.float_encoding")]
     FloatEncoding,
-    #[display(fmt = "timeline.internal.trace-recorder.internal_error_occured")]
+    #[display(fmt = "timeline.internal.trace_recorder.internal_error_occured")]
     InternalErrorOccured,
-    #[display(fmt = "timeline.internal.trace-recorder.system_info")]
+    #[display(fmt = "timeline.internal.trace_recorder.system_info")]
     SystemInfo,
 }
 
@@ -83,7 +83,7 @@ pub enum EventAttrKey {
     #[display(fmt = "{_0}")]
     Common(CommonEventAttrKey),
 
-    #[display(fmt = "event.internal.trace-recorder.task.state")]
+    #[display(fmt = "event.internal.trace_recorder.task.state")]
     TaskState,
 }
 

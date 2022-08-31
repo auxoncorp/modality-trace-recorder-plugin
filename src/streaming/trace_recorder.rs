@@ -6,7 +6,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use derive_more::Display;
-use modality_ingest_client::types::{AttrVal, InternedAttrKey};
+use modality_api::AttrVal;
+use modality_ingest_protocol::InternedAttrKey;
 use std::collections::HashMap;
 use trace_recorder_parser::streaming::RecorderData;
 use trace_recorder_parser::types::{ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT};

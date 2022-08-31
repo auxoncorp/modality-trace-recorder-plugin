@@ -2,10 +2,11 @@ use crate::{
     AttrKeyIndex, Client, CommonEventAttrKey, ContextHandle, ContextSwitchOutcome, NanosecondsExt,
     TraceRecorderConfig, TraceRecorderExt,
 };
+use modality_api::{AttrVal, BigInt, TimelineId};
 use modality_ingest_client::{
-    types::{AttrVal, BigInt, InternedAttrKey, TimelineId},
     IngestClient, IngestClientInitializationError, IngestError, ReadyState,
 };
+use modality_ingest_protocol::InternedAttrKey;
 use std::{
     collections::HashMap,
     io::{self, Read, Seek, SeekFrom},

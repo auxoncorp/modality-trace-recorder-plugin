@@ -1,4 +1,4 @@
-use modality_ingest_client::types::TimelineId;
+use modality_api::TimelineId;
 use std::hash::Hash;
 use trace_recorder_parser::{snapshot, streaming, time::Timestamp, types::ObjectHandle};
 
