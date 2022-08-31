@@ -2,13 +2,15 @@ use crate::{
     AttrKeyIndex, Client, CommonEventAttrKey, ContextHandle, ContextSwitchOutcome, NanosecondsExt,
     TraceRecorderConfig, TraceRecorderExt,
 };
+use modality_api::{AttrVal, BigInt, TimelineId};
 use modality_ingest_client::{
-    types::{AttrKey, AttrVal, BigInt, TimelineId},
     IngestClient, IngestClientInitializationError, IngestError, ReadyState,
 };
+use modality_ingest_protocol::InternedAttrKey;
 use std::{
     collections::HashMap,
     io::{self, Read, Seek, SeekFrom},
+    str::FromStr,
 };
 use trace_recorder_parser::{
     streaming::HeaderInfo,
@@ -55,6 +57,9 @@ pub enum Error {
     #[error(transparent)]
     Auth(#[from] crate::auth::AuthTokenError),
 
+    #[error("Encountered an error attemping to parse the protocol parent URL. {0}")]
+    Url(#[from] url::ParseError),
+
     #[error(
         "Encountered and IO error while reading the input stream ({})",
         .0.kind()
@@ -62,11 +67,32 @@ pub enum Error {
     Io(#[from] io::Error),
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+#[derive(
+    Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, serde_with::DeserializeFromStr,
+)]
 pub enum ImportProtocol {
     Snapshot,
     Streaming,
     Auto,
+}
+
+impl Default for ImportProtocol {
+    fn default() -> Self {
+        ImportProtocol::Auto
+    }
+}
+
+impl FromStr for ImportProtocol {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.trim().to_lowercase().as_str() {
+            "snapshot" => ImportProtocol::Snapshot,
+            "streaming" => ImportProtocol::Streaming,
+            "auto" => ImportProtocol::Auto,
+            p => return Err(format!("Invalid import protocol '{p}'")),
+        })
+    }
 }
 
 pub async fn import<R: Read + Seek + Send>(
@@ -127,14 +153,9 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
         );
     }
 
-    let client = IngestClient::connect(
-        &cfg.rf_opts.protocol_parent_url,
-        cfg.rf_opts.allow_insecure_tls,
-    )
-    .await?;
-    let client = client
-        .authenticate(cfg.rf_opts.resolve_auth()?.into())
-        .await?;
+    let client =
+        IngestClient::connect(&cfg.protocol_parent_url()?, cfg.ingest.allow_insecure_tls).await?;
+    let client = client.authenticate(cfg.resolve_auth()?.into()).await?;
 
     let mut ordering = 0;
     let mut importer = SnapshotImporter::begin(client, cfg.clone(), &trd).await?;
@@ -172,18 +193,20 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                 match importer.context_switch_in(ev.into(), &trd).await? {
                     ContextSwitchOutcome::Same => (),
                     ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                        attrs.insert(
-                            importer
-                                .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                .await?,
-                            AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                        );
-                        attrs.insert(
-                            importer
-                                .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                .await?,
-                            AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                        );
+                        if !cfg.plugin.disable_task_interactions {
+                            attrs.insert(
+                                importer
+                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                    .await?,
+                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                            );
+                            attrs.insert(
+                                importer
+                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                    .await?,
+                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
+                            );
+                        }
                     }
                 }
             }
@@ -212,32 +235,36 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                     match importer.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                    .await?,
-                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                            );
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                    .await?,
-                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                            );
+                            if !cfg.plugin.disable_task_interactions {
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                        .await?,
+                                    AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                                );
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                        .await?,
+                                    AttrVal::Timestamp(
+                                        frequency.lossy_timestamp_ns(remote_timestamp),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
             }
 
             Event::User(ev) => {
-                if cfg.tr_opts.user_event_channel {
+                if cfg.plugin.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         ev.channel.to_string().into(),
                     );
-                } else if cfg.tr_opts.user_event_format_string {
-                    // Use the format string as the event name
+                } else if cfg.plugin.user_event_format_string {
+                    // Use the formatted string as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         ev.formatted_string.to_string().into(),
@@ -245,7 +272,11 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                 }
 
                 // Handle channel event name mappings
-                if let Some(name) = cfg.user_event_channel_rename_map.get(ev.channel.as_str()) {
+                if let Some(name) = cfg
+                    .plugin
+                    .user_event_channel_rename_map
+                    .get(ev.channel.as_str())
+                {
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         name.to_string().into(),
@@ -254,7 +285,8 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
 
                 // Handle format string event name mappings
                 if let Some(name) = cfg
-                    .user_event_format_string_rename_map
+                    .plugin
+                    .user_event_formatted_string_rename_map
                     .get(ev.formatted_string.as_str())
                 {
                     attrs.insert(
@@ -275,6 +307,7 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                 );
 
                 let custom_arg_keys = cfg
+                    .plugin
                     .user_event_fmt_arg_attr_keys
                     .arg_attr_keys(ev.channel.as_str(), &ev.format_string);
                 if let Some(custom_arg_keys) = custom_arg_keys {
@@ -371,14 +404,9 @@ pub async fn import_streaming<R: Read + Send>(
         warn!("Frequency is zero, time domain will be in unit ticks");
     }
 
-    let client = IngestClient::connect(
-        &cfg.rf_opts.protocol_parent_url,
-        cfg.rf_opts.allow_insecure_tls,
-    )
-    .await?;
-    let client = client
-        .authenticate(cfg.rf_opts.resolve_auth()?.into())
-        .await?;
+    let client =
+        IngestClient::connect(&cfg.protocol_parent_url()?, cfg.ingest.allow_insecure_tls).await?;
+    let client = client.authenticate(cfg.resolve_auth()?.into()).await?;
 
     let mut ordering = 0;
     let mut time_rollover_tracker = StreamingInstant::zero();
@@ -439,18 +467,22 @@ pub async fn import_streaming<R: Read + Send>(
                     match importer.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                    .await?,
-                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                            );
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                    .await?,
-                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                            );
+                            if !cfg.plugin.disable_task_interactions {
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                        .await?,
+                                    AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                                );
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                        .await?,
+                                    AttrVal::Timestamp(
+                                        frequency.lossy_timestamp_ns(remote_timestamp),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
@@ -479,32 +511,55 @@ pub async fn import_streaming<R: Read + Send>(
                     match importer.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                    .await?,
-                                AttrVal::TimelineId(Box::new(remote_timeline_id)),
-                            );
-                            attrs.insert(
-                                importer
-                                    .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                    .await?,
-                                AttrVal::Timestamp(frequency.lossy_timestamp_ns(remote_timestamp)),
-                            );
+                            if !cfg.plugin.disable_task_interactions {
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
+                                        .await?,
+                                    AttrVal::TimelineId(Box::new(remote_timeline_id)),
+                                );
+                                attrs.insert(
+                                    importer
+                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
+                                        .await?,
+                                    AttrVal::Timestamp(
+                                        frequency.lossy_timestamp_ns(remote_timestamp),
+                                    ),
+                                );
+                            }
                         }
                     }
                 }
             }
 
+            Event::MemoryAlloc(ev) | Event::MemoryFree(ev) => {
+                attrs.insert(
+                    importer
+                        .event_key(CommonEventAttrKey::MemoryAddress)
+                        .await?,
+                    AttrVal::Integer(ev.address.into()),
+                );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::MemorySize).await?,
+                    AttrVal::Integer(ev.size.into()),
+                );
+                attrs.insert(
+                    importer
+                        .event_key(CommonEventAttrKey::MemoryHeapCounter)
+                        .await?,
+                    AttrVal::Integer(ev.heap_counter.into()),
+                );
+            }
+
             Event::User(ev) => {
-                if cfg.tr_opts.user_event_channel {
+                if cfg.plugin.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         ev.channel.to_string().into(),
                     );
-                } else if cfg.tr_opts.user_event_format_string {
-                    // Use the format string as the event name
+                } else if cfg.plugin.user_event_format_string {
+                    // Use the formatted string as the event name
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         ev.formatted_string.to_string().into(),
@@ -512,7 +567,11 @@ pub async fn import_streaming<R: Read + Send>(
                 }
 
                 // Handle channel event name mappings
-                if let Some(name) = cfg.user_event_channel_rename_map.get(ev.channel.as_str()) {
+                if let Some(name) = cfg
+                    .plugin
+                    .user_event_channel_rename_map
+                    .get(ev.channel.as_str())
+                {
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::Name).await?,
                         name.to_string().into(),
@@ -521,7 +580,8 @@ pub async fn import_streaming<R: Read + Send>(
 
                 // Handle format string event name mappings
                 if let Some(name) = cfg
-                    .user_event_format_string_rename_map
+                    .plugin
+                    .user_event_formatted_string_rename_map
                     .get(ev.formatted_string.as_str())
                 {
                     attrs.insert(
@@ -542,6 +602,7 @@ pub async fn import_streaming<R: Read + Send>(
                 );
 
                 let custom_arg_keys = cfg
+                    .plugin
                     .user_event_fmt_arg_attr_keys
                     .arg_attr_keys(ev.channel.as_str(), &ev.format_string);
                 if let Some(custom_arg_keys) = custom_arg_keys {
@@ -640,7 +701,7 @@ struct Importer<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
     task_to_timeline_ids: HashMap<ObjectHandle, TimelineId>,
     isr_to_timeline_ids: HashMap<ObjectHandle, TimelineId>,
 
-    common_timeline_attr_kvs: HashMap<AttrKey, AttrVal>,
+    common_timeline_attr_kvs: HashMap<InternedAttrKey, AttrVal>,
     client: Client<TAK, EAK>,
 }
 
@@ -661,9 +722,9 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
 
         let mut importer = Importer {
-            single_task_timeline: cfg.tr_opts.single_task_timeline,
-            flatten_isr_timelines: cfg.tr_opts.flatten_isr_timelines,
-            startup_task_name: cfg.tr_opts.startup_task_name,
+            single_task_timeline: cfg.plugin.single_task_timeline,
+            flatten_isr_timelines: cfg.plugin.flatten_isr_timelines,
+            startup_task_name: cfg.plugin.startup_task_name,
             startup_task_handle,
             handle_of_last_logged_context: ContextHandle::Task(startup_task_handle),
             timestamp_of_last_event: Timestamp::zero(),
@@ -686,7 +747,7 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         Ok(())
     }
 
-    async fn event_key<K: Into<EAK>>(&mut self, key: K) -> Result<AttrKey, Error> {
+    async fn event_key<K: Into<EAK>>(&mut self, key: K) -> Result<InternedAttrKey, Error> {
         let k = self.client.event_key(key).await?;
         Ok(k)
     }
@@ -695,7 +756,7 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         &mut self,
         timestamp: Timestamp,
         ordering: u128,
-        attrs: impl IntoIterator<Item = (AttrKey, AttrVal)>,
+        attrs: impl IntoIterator<Item = (InternedAttrKey, AttrVal)>,
     ) -> Result<(), Error> {
         if timestamp < self.timestamp_of_last_event {
             warn!(
@@ -835,8 +896,8 @@ fn arg_to_attr_val(arg: &Argument) -> AttrVal {
         Argument::U16(v) => AttrVal::Integer(i64::from(*v)),
         Argument::I32(v) => AttrVal::Integer(i64::from(*v)),
         Argument::U32(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::F32(v) => AttrVal::Float(v.0.into()),
-        Argument::F64(v) => AttrVal::Float(v.0),
+        Argument::F32(v) => AttrVal::from(f64::from(v.0)),
+        Argument::F64(v) => AttrVal::from(v.0),
         Argument::String(v) => AttrVal::String(v.clone()),
     }
 }

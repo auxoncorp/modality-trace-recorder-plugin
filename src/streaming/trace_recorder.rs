@@ -6,7 +6,8 @@ use crate::{
 };
 use async_trait::async_trait;
 use derive_more::Display;
-use modality_ingest_client::types::{AttrKey, AttrVal};
+use modality_api::AttrVal;
+use modality_ingest_protocol::InternedAttrKey;
 use std::collections::HashMap;
 use trace_recorder_parser::streaming::RecorderData;
 use trace_recorder_parser::types::{ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT};
@@ -74,13 +75,12 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
         &self,
         cfg: &TraceRecorderConfig,
         client: &mut Client<TimelineAttrKey, EventAttrKey>,
-    ) -> Result<HashMap<AttrKey, AttrVal>, Error> {
+    ) -> Result<HashMap<InternedAttrKey, AttrVal>, Error> {
         let mut common_timeline_attr_kvs = HashMap::new();
-        let run_id = cfg.rf_opts.run_id.unwrap_or_else(Uuid::new_v4);
-        let time_domain = cfg.rf_opts.time_domain.unwrap_or_else(Uuid::new_v4);
+        let run_id = cfg.plugin.run_id.unwrap_or_else(Uuid::new_v4);
+        let time_domain = cfg.plugin.time_domain.unwrap_or_else(Uuid::new_v4);
         debug!(run_id = %run_id);
         for tak in TimelineAttrKey::enumerate() {
-            let key = client.timeline_key(*tak).await?;
             let val = match tak {
                 // These are defined by the actual timeline
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Name)
@@ -120,6 +120,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                 TimelineAttrKey::Common(CommonTimelineAttrKey::IsrChainingThreshold) => {
                     AttrVal::Integer(self.ts_config_event.isr_chaining_threshold.into())
                 }
+                TimelineAttrKey::Common(CommonTimelineAttrKey::Custom(_)) => continue,
 
                 TimelineAttrKey::FormatVersion => {
                     AttrVal::Integer(self.header.format_version.into())
@@ -140,8 +141,24 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                     }
                 }
             };
+            let key = client.timeline_key(tak.clone()).await?;
             common_timeline_attr_kvs.insert(key, val);
         }
+
+        for kv in cfg
+            .ingest
+            .timeline_attributes
+            .additional_timeline_attributes
+            .iter()
+        {
+            let key = client
+                .timeline_key(TimelineAttrKey::Common(CommonTimelineAttrKey::Custom(
+                    kv.0.to_string(),
+                )))
+                .await?;
+            common_timeline_attr_kvs.insert(key, kv.1.clone());
+        }
+
         Ok(common_timeline_attr_kvs)
     }
 }

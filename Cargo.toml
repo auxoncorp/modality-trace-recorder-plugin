@@ -1,6 +1,6 @@
 [package]
 name = "modality-trace-recorder-plugin"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite and ingest adapter library for Percepio's TraceRecorder data"
@@ -34,17 +34,26 @@ derive_more = "0.99"
 hex = "0.4"
 dirs = "4"
 url = "2"
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 humantime = "2"
 async-trait = "0.1"
+serde = { version = "1.0", features=["derive"] }
+serde_with = "2.0"
 itm = { git = "https://github.com/rtic-scope/itm.git", default-features = false }
 probe-rs = { git = "https://github.com/probe-rs/probe-rs.git" }
 goblin = "0.5"
 clap = { version = "3.2", features = ["derive", "env"] }
 ctrlc = { version = "3.2", features=["termination"] }
 exitcode = "1"
-modality-ingest-client = "0.1"
+modality-api = { git = "https://github.com/auxoncorp/modality-sdk.git" }
+modality-ingest-client = { git = "https://github.com/auxoncorp/modality-sdk.git" }
+modality-ingest-protocol = { git = "https://github.com/auxoncorp/modality-sdk.git" }
+modality-reflector-config = { git = "https://github.com/auxoncorp/modality-sdk.git" }
 trace-recorder-parser = "0.1"
+
+[dev-dependencies]
+tempfile = "3.3"
+pretty_assertions = "1.2"
 
 [profile.release]
 strip="debuginfo"

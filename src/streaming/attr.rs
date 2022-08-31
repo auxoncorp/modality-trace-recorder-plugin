@@ -5,22 +5,22 @@ use std::hash::Hash;
 impl AttrKeyIndex for TimelineAttrKey {}
 impl AttrKeyIndex for EventAttrKey {}
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 pub enum TimelineAttrKey {
     #[display(fmt = "{_0}")]
     Common(CommonTimelineAttrKey),
 
-    #[display(fmt = "timeline.internal.trace-recorder.format_version")]
+    #[display(fmt = "timeline.internal.trace_recorder.format_version")]
     FormatVersion,
-    #[display(fmt = "timeline.internal.trace-recorder.heap_counter")]
+    #[display(fmt = "timeline.internal.trace_recorder.heap_counter")]
     HeapCounter,
-    #[display(fmt = "timeline.internal.trace-recorder.session_counter")]
+    #[display(fmt = "timeline.internal.trace_recorder.session_counter")]
     SessionCounter,
-    #[display(fmt = "timeline.internal.trace-recorder.tick_rate_hz")]
+    #[display(fmt = "timeline.internal.trace_recorder.tick_rate_hz")]
     TickRateHz,
-    #[display(fmt = "timeline.internal.trace-recorder.hwtc_type")]
+    #[display(fmt = "timeline.internal.trace_recorder.hwtc_type")]
     HwTcType,
-    #[display(fmt = "timeline.internal.trace-recorder.htc_period")]
+    #[display(fmt = "timeline.internal.trace_recorder.htc_period")]
     HtcPeriod,
 }
 
@@ -62,14 +62,14 @@ pub enum EventAttrKey {
     #[display(fmt = "{_0}")]
     Common(CommonEventAttrKey),
 
-    #[display(fmt = "event.internal.trace-recorder.id")]
+    #[display(fmt = "event.internal.trace_recorder.id")]
     EventId,
-    #[display(fmt = "event.internal.trace-recorder.event_count")]
+    #[display(fmt = "event.internal.trace_recorder.event_count")]
     EventCount,
-    #[display(fmt = "event.internal.trace-recorder.parameter_count")]
+    #[display(fmt = "event.internal.trace_recorder.parameter_count")]
     ParameterCount,
 
-    #[display(fmt = "event.internal.trace-recorder.timer.ticks")]
+    #[display(fmt = "event.internal.trace_recorder.timer.ticks")]
     TimerTicks,
 }
 

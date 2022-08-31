@@ -5,7 +5,7 @@ use goblin::elf::Elf;
 use itm::{DecoderError, Singles, TracePacket};
 use modality_trace_recorder_plugin::{
     import, import::import_streaming, streaming::Command, tracing::try_init_tracing_subscriber,
-    Interruptor, ReflectorOpts, TraceRecorderConfig, TraceRecorderOpts,
+    Interruptor, ReflectorOpts, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use probe_rs::{
     architecture::arm::{component::TraceSink, SwoConfig},
@@ -69,7 +69,7 @@ struct Opts {
         conflicts_with_all = &["disable-control-plane", "elf-file"],
         help_heading = "STREAMING PORT CONFIGURATION"
     )]
-    pub command_data_addr: Option<u32>,
+    pub command_data_addr: Option<u64>,
 
     /// Use the provided memory address for the ITM streaming port variable 'tz_host_command_bytes_to_read'.
     ///
@@ -81,16 +81,17 @@ struct Opts {
         conflicts_with_all = &["disable-control-plane", "elf-file"],
         help_heading = "STREAMING PORT CONFIGURATION"
     )]
-    pub command_len_addr: Option<u32>,
+    pub command_len_addr: Option<u64>,
 
     /// The ITM stimulus port used for trace recorder data.
+    ///
+    /// The default value is 1.
     #[clap(
         long = "stimulus-port",
         name = "stimulus-port",
-        default_value = "1",
         help_heading = "STREAMING PORT CONFIGURATION"
     )]
-    pub stimulus_port: u8,
+    pub stimulus_port: Option<u8>,
 
     /// Select a specific probe instead of opening the first available one.
     ///
@@ -100,42 +101,34 @@ struct Opts {
 
     /// The target chip to attach to (e.g. STM32F407VE).
     #[clap(long, name = "chip", help_heading = "PROBE CONFIGURATION")]
-    pub chip: String,
+    pub chip: Option<String>,
 
-    /// Protocol used to connect to chip. Possible options: [swd, jtag]
-    #[structopt(
-        long,
-        name = "protocol",
-        default_value = "swd",
-        help_heading = "PROBE CONFIGURATION"
-    )]
-    pub protocol: WireProtocol,
+    /// Protocol used to connect to chip.
+    /// Possible options: [swd, jtag].
+    ///
+    /// The default value is swd.
+    #[structopt(long, name = "protocol", help_heading = "PROBE CONFIGURATION")]
+    pub protocol: Option<WireProtocol>,
 
     /// The protocol speed in kHz.
-    #[clap(
-        long,
-        name = "speed",
-        default_value = "4000",
-        help_heading = "PROBE CONFIGURATION"
-    )]
-    pub speed: u32,
+    ///
+    /// The default value is 4000.
+    #[clap(long, name = "speed", help_heading = "PROBE CONFIGURATION")]
+    pub speed: Option<u32>,
 
     /// The selected core to target.
-    #[clap(
-        long,
-        name = "core",
-        default_value = "0",
-        help_heading = "PROBE CONFIGURATION"
-    )]
-    pub core: usize,
+    ///
+    /// The default value is 0.
+    #[clap(long, name = "core", help_heading = "PROBE CONFIGURATION")]
+    pub core: Option<usize>,
 
     /// The speed of the clock feeding the TPIU/SWO module in Hz.
     #[clap(long, name = "Hz", help_heading = "PROBE CONFIGURATION")]
-    pub clk: u32,
+    pub clk: Option<u32>,
 
     /// The desired baud rate of the SWO output.
     #[clap(long, name = "baud-rate", help_heading = "PROBE CONFIGURATION")]
-    pub baud: u32,
+    pub baud: Option<u32>,
 
     /// Reset the target on startup.
     #[clap(long, name = "reset", help_heading = "PROBE CONFIGURATION")]
@@ -180,36 +173,103 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    if !opts.disable_control_plane
-        && opts.elf_file.is_none()
-        && (opts.command_data_addr.is_none() || opts.command_len_addr.is_none())
+    let mut trc_cfg = TraceRecorderConfig::load_merge_with_opts(
+        TraceRecorderConfigEntry::ItmCollector,
+        opts.rf_opts,
+        opts.tr_opts,
+    )?;
+
+    if opts.disable_control_plane {
+        trc_cfg.plugin.itm_collector.disable_control_plane = true;
+    }
+    if opts.restart {
+        trc_cfg.plugin.itm_collector.restart = true;
+    }
+    if let Some(elf) = opts.elf_file {
+        trc_cfg.plugin.itm_collector.elf_file = Some(elf);
+    }
+    if let Some(addr) = opts.command_data_addr {
+        trc_cfg.plugin.itm_collector.command_data_addr = Some(addr);
+    }
+    if let Some(addr) = opts.command_len_addr {
+        trc_cfg.plugin.itm_collector.command_len_addr = Some(addr);
+    }
+    if let Some(sp) = opts.stimulus_port {
+        trc_cfg.plugin.itm_collector.stimulus_port = sp;
+    }
+    if let Some(ps) = &opts.probe_selector {
+        trc_cfg.plugin.itm_collector.probe_selector = Some(ps.clone().into());
+    }
+    if let Some(p) = opts.protocol {
+        trc_cfg.plugin.itm_collector.protocol = p;
+    }
+    if let Some(s) = opts.speed {
+        trc_cfg.plugin.itm_collector.speed = s;
+    }
+    if let Some(c) = opts.core {
+        trc_cfg.plugin.itm_collector.core = c;
+    }
+    if let Some(c) = opts.clk {
+        trc_cfg.plugin.itm_collector.clk = Some(c);
+    }
+    if let Some(c) = opts.baud {
+        trc_cfg.plugin.itm_collector.baud = Some(c);
+    }
+    if opts.reset {
+        trc_cfg.plugin.itm_collector.reset = true;
+    }
+
+    if !trc_cfg.plugin.itm_collector.disable_control_plane
+        && trc_cfg.plugin.itm_collector.elf_file.is_none()
+        && (trc_cfg.plugin.itm_collector.command_data_addr.is_none()
+            || trc_cfg.plugin.itm_collector.command_len_addr.is_none())
     {
         return Err(Error::MissingItmPortVariables.into());
     }
 
-    if opts.stimulus_port > 31 {
-        return Err(Error::InvalidStimulusPort(opts.stimulus_port).into());
+    let clk = trc_cfg.plugin.itm_collector.clk.ok_or(Error::MissingClk)?;
+    let baud = trc_cfg
+        .plugin
+        .itm_collector
+        .baud
+        .ok_or(Error::MissingBaud)?;
+    let chip = trc_cfg
+        .plugin
+        .itm_collector
+        .chip
+        .clone()
+        .ok_or(Error::MissingChip)?;
+
+    if trc_cfg.plugin.itm_collector.stimulus_port > 31 {
+        return Err(Error::InvalidStimulusPort(trc_cfg.plugin.itm_collector.stimulus_port).into());
     }
 
-    let control_plane_addrs = if let Some(elf_file) = &opts.elf_file {
+    let control_plane_addrs = if let Some(elf_file) = &trc_cfg.plugin.itm_collector.elf_file {
         debug!(elf_file = %elf_file.display(), "Reading control plane variable addresses from ELF file");
         let buffer = fs::read(elf_file)?;
         let elf = Elf::parse(&buffer)?;
         Some(TzHostCommandVariables::load_from_elf(&elf)?)
     } else {
-        None
+        match (
+            trc_cfg.plugin.itm_collector.command_data_addr,
+            trc_cfg.plugin.itm_collector.command_len_addr,
+        ) {
+            (Some(data_addr), Some(len_addr)) => Some(TzHostCommandVariables {
+                tz_host_command_bytes_to_read_addr: len_addr,
+                tz_host_command_data_addr: data_addr,
+            }),
+            _ => None,
+        }
     };
 
-    let trc_cfg = TraceRecorderConfig::from((opts.rf_opts, opts.tr_opts));
-
-    let sink_cfg = SwoConfig::new(opts.clk)
+    let sink_cfg = SwoConfig::new(clk)
         .set_mode_uart()
-        .set_baud(opts.baud)
+        .set_baud(baud)
         .set_continuous_formatting(false);
 
-    let mut probe = if let Some(probe_selector) = opts.probe_selector {
-        debug!(probe_selector = %probe_selector, "Opening selected probe");
-        Probe::open(probe_selector)?
+    let mut probe = if let Some(probe_selector) = &trc_cfg.plugin.itm_collector.probe_selector {
+        debug!(probe_selector = %probe_selector.0, "Opening selected probe");
+        Probe::open(probe_selector.0.clone())?
     } else {
         debug!("Opening first available probe");
         let probes = Probe::list_all();
@@ -220,40 +280,38 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    debug!(protocol = %opts.protocol, speed = opts.speed, "Configuring probe");
-    probe.select_protocol(opts.protocol)?;
-    probe.set_speed(opts.speed)?;
+    debug!(protocol = %trc_cfg.plugin.itm_collector.protocol, speed = trc_cfg.plugin.itm_collector.speed, "Configuring probe");
+    probe.select_protocol(trc_cfg.plugin.itm_collector.protocol)?;
+    probe.set_speed(trc_cfg.plugin.itm_collector.speed)?;
 
-    if opts.reset {
+    if trc_cfg.plugin.itm_collector.reset {
         debug!("Reseting target");
         probe.target_reset_assert()?;
         probe.target_reset_deassert()?;
     }
 
-    debug!(chip = opts.chip, "Attaching to chip");
-    let mut session = probe.attach(opts.chip, Permissions::default())?;
+    debug!(chip = chip, "Attaching to chip");
+    let mut session = probe.attach(chip, Permissions::default())?;
 
-    debug!(
-        baud = opts.baud,
-        clk = opts.clk,
-        "Configuring SWO trace sink"
-    );
-    session.setup_tracing(opts.core, TraceSink::Swo(sink_cfg))?;
+    debug!(baud = baud, clk = clk, "Configuring SWO trace sink");
+    session.setup_tracing(trc_cfg.plugin.itm_collector.core, TraceSink::Swo(sink_cfg))?;
 
-    session.core(0)?.write_word_32(ITM_LAR, ITM_LAR_UNLOCK)?;
     session
-        .core(0)?
-        .write_word_32(ITM_TER, 1 << opts.stimulus_port)?;
+        .core(trc_cfg.plugin.itm_collector.core)?
+        .write_word_32(ITM_LAR, ITM_LAR_UNLOCK)?;
+    session
+        .core(trc_cfg.plugin.itm_collector.core)?
+        .write_word_32(ITM_TER, 1 << trc_cfg.plugin.itm_collector.stimulus_port)?;
 
     if let Some(cp_addrs) = control_plane_addrs {
-        if opts.restart {
+        if trc_cfg.plugin.itm_collector.restart {
             debug!("Sending stop command");
             let cmd = Command::Stop.to_le_bytes();
             session
-                .core(opts.core)?
+                .core(trc_cfg.plugin.itm_collector.core)?
                 .write_8(cp_addrs.tz_host_command_data_addr, &cmd)?;
             session
-                .core(opts.core)?
+                .core(trc_cfg.plugin.itm_collector.core)?
                 .write_word_32(cp_addrs.tz_host_command_bytes_to_read_addr, cmd.len() as _)?;
         }
 
@@ -262,10 +320,10 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         debug!("Sending start command");
         let cmd = Command::Start.to_le_bytes();
         session
-            .core(opts.core)?
+            .core(trc_cfg.plugin.itm_collector.core)?
             .write_8(cp_addrs.tz_host_command_data_addr, &cmd)?;
         session
-            .core(opts.core)?
+            .core(trc_cfg.plugin.itm_collector.core)?
             .write_word_32(cp_addrs.tz_host_command_bytes_to_read_addr, cmd.len() as _)?;
     }
 
@@ -274,7 +332,10 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             session.swo_reader()?,
             itm::DecoderOptions { ignore_eof: true },
         );
-        let mut stream = TrcItmReader::new(opts.stimulus_port, decoder.singles());
+        let mut stream = TrcItmReader::new(
+            trc_cfg.plugin.itm_collector.stimulus_port,
+            decoder.singles(),
+        );
         import_streaming(&mut stream, trc_cfg).await?;
         Ok(())
     });
@@ -307,6 +368,19 @@ enum Error {
 
     #[error("Invalid stimulus port {0}. Must be in the range of 0..=31")]
     InvalidStimulusPort(u8),
+
+    #[error("Missing clock speed. Either supply it as a option at the CLI or a config file member 'clk'")]
+    MissingClk,
+
+    #[error(
+        "Missing baud rate. Either supply it as a option at the CLI or a config file member 'baud'"
+    )]
+    MissingBaud,
+
+    #[error(
+        "Missing chip. Either supply it as a option at the CLI or a config file member 'chip'"
+    )]
+    MissingChip,
 
     #[error("Encountered an error with the probe. {0}")]
     ProbeRs(#[from] probe_rs::Error),
