@@ -28,7 +28,6 @@ path = "src/bin/itm_collector.rs"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "io-util", "net", "signal", "tracing"] }
-futures = "0.3"
 thiserror = "1"
 derive_more = "0.99"
 hex = "0.4"
@@ -45,10 +44,10 @@ goblin = "0.5"
 clap = { version = "3.2", features = ["derive", "env"] }
 ctrlc = { version = "3.2", features=["termination"] }
 exitcode = "1"
-modality-api = { git = "https://github.com/auxoncorp/modality-sdk.git" }
-modality-ingest-client = { git = "https://github.com/auxoncorp/modality-sdk.git" }
-modality-ingest-protocol = { git = "https://github.com/auxoncorp/modality-sdk.git" }
-modality-reflector-config = { git = "https://github.com/auxoncorp/modality-sdk.git" }
+modality-api = "0.1"
+modality-ingest-client = "0.2"
+modality-ingest-protocol = "0.1"
+modality-reflector-config = "0.1"
 trace-recorder-parser = "0.1"
 
 [dev-dependencies]
