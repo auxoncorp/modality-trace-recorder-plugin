@@ -67,6 +67,9 @@ These sections are the same for each of the plugins.
 
 These `metadata` fields are specific to the importer plugin.
 
+Note that individual plugin configuration goes in a specific table in your
+reflector configuration file, e.g. `[plugins.ingest.importers.trace-recorder.metadata]`.
+
 * `[metadata]` — Plugin configuration table.
   - `protocol` — The protocol to use. Either `streaming`, `snapshot`, or `auto`. The default is `auto`.
   - `file` — Path to the file to import.
@@ -74,6 +77,9 @@ These `metadata` fields are specific to the importer plugin.
 ### TCP Collector Section
 
 These `metadata` fields are specific to the streaming TCP collector plugin.
+
+Note that individual plugin configuration goes in a specific table in your
+reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-tcp.metadata]`.
 
 * `[metadata]` — Plugin configuration table.
   - `disable-control-plane` — Disable sending control plane commands to the target. By default, `CMD_SET_ACTIVE` is sent on startup and shutdown to start and stop tracing on the target.
@@ -84,6 +90,9 @@ These `metadata` fields are specific to the streaming TCP collector plugin.
 ### ITM Collector Section
 
 These `metadata` fields are specific to the streaming ITM collector plugin.
+
+Note that individual plugin configuration goes in a specific table in your
+reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-itm.metadata]`.
 
 * `[metadata]` — Plugin configuration table.
   - `disable-control-plane` — Disable sending control plane commands to the target. By default, `CMD_SET_ACTIVE` is sent on startup and shutdown to start and stop tracing on the target.
