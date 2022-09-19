@@ -1,6 +1,8 @@
 use crate::auth::{AuthTokenBytes, AuthTokenError};
 use crate::import::ImportProtocol;
-use crate::opts::{FormatArgAttributeKeysSet, ReflectorOpts, RenameMap, TraceRecorderOpts};
+use crate::opts::{
+    FormatArgAttributeKeysSet, IgnoredObjectClasses, ReflectorOpts, RenameMap, TraceRecorderOpts,
+};
 use derive_more::{Deref, From, Into};
 use modality_reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR};
 use serde::Deserialize;
@@ -33,6 +35,7 @@ pub struct PluginConfig {
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
     pub disable_task_interactions: bool,
+    pub ignored_object_classes: IgnoredObjectClasses,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
     pub user_event_channel_rename_map: RenameMap,
@@ -181,6 +184,11 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.disable_task_interactions
             },
+            ignored_object_classes: if !tr_opts.ignore_object_class.is_empty() {
+                tr_opts.ignore_object_class.clone().into_iter().collect()
+            } else {
+                cfg_plugin.ignored_object_classes
+            },
             user_event_channel: if tr_opts.user_event_channel {
                 true
             } else {
@@ -255,6 +263,7 @@ mod internal {
         pub single_task_timeline: bool,
         pub flatten_isr_timelines: bool,
         pub disable_task_interactions: bool,
+        pub ignored_object_classes: IgnoredObjectClasses,
         pub user_event_channel: bool,
         pub user_event_format_string: bool,
         #[serde(rename = "user-event-channel-name")]
@@ -273,6 +282,7 @@ mod internal {
                 single_task_timeline: c.single_task_timeline,
                 flatten_isr_timelines: c.flatten_isr_timelines,
                 disable_task_interactions: c.disable_task_interactions,
+                ignored_object_classes: c.ignored_object_classes,
                 user_event_channel: c.user_event_channel,
                 user_event_format_string: c.user_event_format_string,
                 user_event_channel_rename_map: c.user_event_channel_rename_map,
@@ -380,6 +390,7 @@ mod test {
     use modality_reflector_config::{AttrKeyEqValuePair, TimelineAttributes};
     use pretty_assertions::assert_eq;
     use std::{env, fs::File, io::Write};
+    use trace_recorder_parser::types::ObjectClass;
 
     const IMPORT_CONFIG: &str = r#"[ingest]
 protocol-parent-url = 'modality-ingest://127.0.0.1:14182'
@@ -472,6 +483,7 @@ single-task-timeline = true
 flatten-isr-timelines = true
 disable-control-plane = true
 disable-task-interactions = true
+ignored-object-classes = ['queue', 'Semaphore']
 restart = true
 elf-file = '/path/to/elf.elf'
 command-data-addr = 1234
@@ -562,6 +574,7 @@ reset = true
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
+                    ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
                     user_event_channel_rename_map: vec![RenameMapItem {
@@ -662,6 +675,7 @@ reset = true
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
+                    ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
                     user_event_channel_rename_map: vec![RenameMapItem {
@@ -764,6 +778,9 @@ reset = true
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
+                    ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
+                        .into_iter()
+                        .collect(),
                     user_event_channel: true,
                     user_event_format_string: true,
                     user_event_channel_rename_map: vec![RenameMapItem {

@@ -39,10 +39,11 @@ pub trait NanosecondsExt {
 
     /// Convert to nanosecond time base using the frequency if non-zero,
     /// otherwise fall back to unit ticks
-    fn lossy_timestamp_ns(&self, ticks: Timestamp) -> Nanoseconds {
+    fn lossy_timestamp_ns<T: Into<Timestamp>>(&self, ticks: T) -> Nanoseconds {
+        let t = ticks.into();
         self.resolution_ns()
-            .map(|res| Nanoseconds::from(ticks.get_raw() * res.get_raw()))
-            .unwrap_or_else(|| ticks.get_raw().into())
+            .map(|res| Nanoseconds::from(t.get_raw() * res.get_raw()))
+            .unwrap_or_else(|| t.get_raw().into())
     }
 }
 

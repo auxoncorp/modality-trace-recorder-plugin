@@ -20,8 +20,8 @@ default behavior.
 * Task and ISR objects are represented as separate Modality timelines
 * The initial startup task ('(startup)') is also represented as a separate Modality timeline
 * Streaming header and snapshot fields are represented as Modality timeline attributes under the `timeline.internal.trace_recorder` prefix
-* Object properties (i.e. task priority) are represented as Modality event attributes under the `event.internal.trace_recorder` prefix
-* User event (`USER_EVENT`) attributes are at the root level (e.g. `event.channel`)
+* Object properties and event context fields are represented as Modality event attributes under the `event.internal.trace_recorder` prefix
+* Event field attributes are at the root level (e.g. `event.channel` for `USER_EVENT` channel field)
 * Task and ISR context switches will be synthesized into Modality timeline interactions
 
 See the [Modality documentation](https://docs.auxon.io/modality/) for more information on the Modality concepts.
@@ -50,6 +50,7 @@ These sections are the same for each of the plugins.
   - `startup-task-name` — Use the provided initial startup task name instead of the default (`(startup)`).
   - `single-task-timeline` — Use a single timeline for all tasks instead of a timeline per task. ISRs can still be represented with their own timelines or not.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
+  - `ignored-object-classes` — Array of object classes to ignore processing during ingest (e.g. `[queue, semaphore]`)
   - `user-event-channel` — Instead of `USER_EVENT @ <task-name>`, use the user event channel as the event name (`<channel> @ <task-name>`).
   - `user-event-format-string` — Instead of `USER_EVENT @ <task-name>`, use the user event format string as the event name (`<format-string> @ <task-name>`).
   - `[[user-event-channel-name]]` — Use a custom event name whenever a user event with a matching channel is processed.

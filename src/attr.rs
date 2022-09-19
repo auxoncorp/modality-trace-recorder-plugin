@@ -79,24 +79,41 @@ pub enum CommonEventAttrKey {
     #[display(fmt = "event.internal.trace_recorder.timestamp.ticks")]
     TimestampTicks,
 
-    #[display(fmt = "event.internal.trace_recorder.isr.name")]
+    #[display(fmt = "event.internal.trace_recorder.object_handle")]
+    ObjectHandle,
+
+    #[display(fmt = "event.isr")]
     IsrName,
-    #[display(fmt = "event.internal.trace_recorder.isr.priority")]
+    #[display(fmt = "event.priority")]
     IsrPriority,
 
-    #[display(fmt = "event.internal.trace_recorder.task.name")]
+    #[display(fmt = "event.task")]
     TaskName,
-    #[display(fmt = "event.internal.trace_recorder.task.priority")]
+    #[display(fmt = "event.priority")]
     TaskPriority,
 
-    #[display(fmt = "event.internal.trace_recorder.memory.address")]
+    #[display(fmt = "event.address")]
     MemoryAddress,
-    #[display(fmt = "event.internal.trace_recorder.memory.size")]
+    #[display(fmt = "event.size")]
     MemorySize,
-    #[display(fmt = "event.internal.trace_recorder.memory.heap_counter")]
+    #[display(fmt = "event.heap_counter")]
     MemoryHeapCounter,
+    #[display(fmt = "event.low_mark")]
+    StackLowMark,
 
-    // User events are more important so we surface the attrs at the top level
+    #[display(fmt = "event.queue_length")]
+    QueueLength,
+    #[display(fmt = "event.messages_waiting")]
+    QueueMessagesWaiting,
+
+    #[display(fmt = "event.count")]
+    SemaphoreCount,
+
+    #[display(fmt = "event.trace_recorder.ticks_to_wait")]
+    TicksToWait,
+    #[display(fmt = "event.trace_recorder.ns_to_wait")]
+    NanosToWait,
+
     #[display(fmt = "event.channel")]
     UserChannel,
     #[display(fmt = "event.formatted_string")]

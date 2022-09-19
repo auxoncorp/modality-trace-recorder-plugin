@@ -3,6 +3,7 @@ use derive_more::Deref;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 use std::str::FromStr;
+use trace_recorder_parser::types::ObjectClass;
 use url::Url;
 use uuid::Uuid;
 
@@ -139,6 +140,16 @@ pub struct TraceRecorderOpts {
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub startup_task_name: Option<String>,
+
+    /// Specify an object class to ignore.
+    /// These events will be omitted during processing.
+    /// Can be supplied multiple times.
+    #[clap(
+        long,
+        name = "ignore-object-class",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub ignore_object_class: Vec<IgnoredObjectClass>,
 }
 
 /// A map of trace recorder USER_EVENT channels/format-strings to Modality event names
@@ -258,6 +269,42 @@ impl FromStr for FormatArgAttributeKeysItem {
             format_string: tokens[1].to_owned(),
             arg_attr_keys: arg_attr_keys.into_iter().map(|s| s.to_owned()).collect(),
         })
+    }
+}
+
+#[derive(
+    Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Deref, serde_with::DeserializeFromStr,
+)]
+pub struct IgnoredObjectClass(pub ObjectClass);
+
+impl FromStr for IgnoredObjectClass {
+    type Err = <ObjectClass as FromStr>::Err;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(IgnoredObjectClass(ObjectClass::from_str(s)?))
+    }
+}
+
+#[derive(
+    Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, Deref, serde::Deserialize,
+)]
+pub struct IgnoredObjectClasses(#[serde(default)] pub BTreeSet<IgnoredObjectClass>);
+
+impl FromIterator<IgnoredObjectClass> for IgnoredObjectClasses {
+    fn from_iter<T: IntoIterator<Item = IgnoredObjectClass>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
+}
+
+impl FromIterator<ObjectClass> for IgnoredObjectClasses {
+    fn from_iter<T: IntoIterator<Item = ObjectClass>>(iter: T) -> Self {
+        Self(iter.into_iter().map(IgnoredObjectClass).collect())
+    }
+}
+
+impl IgnoredObjectClasses {
+    pub fn contains(&self, c: ObjectClass) -> bool {
+        self.0.contains(&IgnoredObjectClass(c))
     }
 }
 

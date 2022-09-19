@@ -15,7 +15,7 @@ use std::{
 use trace_recorder_parser::{
     streaming::HeaderInfo,
     time::{StreamingInstant, Timestamp},
-    types::{Argument, KernelPortIdentity, ObjectHandle, UserEventArgRecordCount},
+    types::{Argument, KernelPortIdentity, ObjectClass, ObjectHandle, UserEventArgRecordCount},
 };
 use tracing::{debug, error, info, warn};
 
@@ -189,6 +189,10 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                     importer.event_key(CommonEventAttrKey::IsrPriority).await?,
                     AttrVal::Integer(u32::from(ev.priority).into()),
                 );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
 
                 match importer.context_switch_in(ev.into(), &trd).await? {
                     ContextSwitchOutcome::Same => (),
@@ -226,6 +230,10 @@ pub async fn import_snapshot<R: Read + Seek + Send>(
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::TaskPriority).await?,
                     AttrVal::Integer(u32::from(ev.priority).into()),
+                );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
                 );
 
                 if matches!(
@@ -459,6 +467,10 @@ pub async fn import_streaming<R: Read + Send>(
                     importer.event_key(CommonEventAttrKey::IsrPriority).await?,
                     AttrVal::Integer(u32::from(ev.priority).into()),
                 );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
 
                 if matches!(
                     event_type,
@@ -492,7 +504,10 @@ pub async fn import_streaming<R: Read + Send>(
             | Event::TaskReady(ev)
             | Event::TaskResume(ev)
             | Event::TaskCreate(ev)
-            | Event::TaskActivate(ev) => {
+            | Event::TaskActivate(ev)
+            | Event::TaskPriority(ev)
+            | Event::TaskPriorityInherit(ev)
+            | Event::TaskPriorityDisinherit(ev) => {
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::TaskName).await?,
                     ev.name.to_string().into(),
@@ -500,6 +515,10 @@ pub async fn import_streaming<R: Read + Send>(
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::TaskPriority).await?,
                     AttrVal::Integer(u32::from(ev.priority).into()),
+                );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
                 );
 
                 if matches!(
@@ -549,6 +568,138 @@ pub async fn import_streaming<R: Read + Send>(
                         .await?,
                     AttrVal::Integer(ev.heap_counter.into()),
                 );
+            }
+
+            Event::UnusedStack(ev) => {
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::TaskName).await?,
+                    ev.task.to_string().into(),
+                );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::StackLowMark).await?,
+                    AttrVal::Integer(ev.low_mark.into()),
+                );
+            }
+
+            Event::QueueCreate(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Queue)
+                {
+                    continue;
+                }
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::QueueLength).await?,
+                    AttrVal::Integer(ev.queue_length.into()),
+                );
+            }
+
+            Event::QueueSend(ev)
+            | Event::QueueSendBlock(ev)
+            | Event::QueueSendFromIsr(ev)
+            | Event::QueueReceive(ev)
+            | Event::QueueReceiveBlock(ev)
+            | Event::QueueReceiveFromIsr(ev)
+            | Event::QueuePeek(ev)
+            | Event::QueuePeekBlock(ev)
+            | Event::QueueSendFront(ev)
+            | Event::QueueSendFrontBlock(ev)
+            | Event::QueueSendFrontFromIsr(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Queue)
+                {
+                    continue;
+                }
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    importer
+                        .event_key(CommonEventAttrKey::QueueMessagesWaiting)
+                        .await?,
+                    AttrVal::Integer(ev.messages_waiting.into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::TicksToWait).await?,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::NanosToWait).await?,
+                        AttrVal::Timestamp(frequency.lossy_timestamp_ns(ticks_to_wait)),
+                    );
+                }
+            }
+
+            Event::SemaphoreBinaryCreate(ev) | Event::SemaphoreCountingCreate(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Semaphore)
+                {
+                    continue;
+                }
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                if let Some(count) = ev.count {
+                    attrs.insert(
+                        importer
+                            .event_key(CommonEventAttrKey::SemaphoreCount)
+                            .await?,
+                        AttrVal::Integer(count.into()),
+                    );
+                }
+            }
+
+            Event::SemaphoreGive(ev)
+            | Event::SemaphoreGiveBlock(ev)
+            | Event::SemaphoreGiveFromIsr(ev)
+            | Event::SemaphoreTake(ev)
+            | Event::SemaphoreTakeBlock(ev)
+            | Event::SemaphoreTakeFromIsr(ev)
+            | Event::SemaphorePeek(ev)
+            | Event::SemaphorePeekBlock(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Semaphore)
+                {
+                    continue;
+                }
+                attrs.insert(
+                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    importer
+                        .event_key(CommonEventAttrKey::SemaphoreCount)
+                        .await?,
+                    AttrVal::Integer(ev.count.into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::TicksToWait).await?,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::NanosToWait).await?,
+                        AttrVal::Timestamp(frequency.lossy_timestamp_ns(ticks_to_wait)),
+                    );
+                }
             }
 
             Event::User(ev) => {
@@ -647,10 +798,7 @@ pub async fn import_streaming<R: Read + Send>(
             }
 
             // Skip These
-            Event::ObjectName(_)
-            | Event::TraceStart(_)
-            | Event::TsConfig(_)
-            | Event::TaskPriority(_) => continue,
+            Event::ObjectName(_) | Event::TraceStart(_) | Event::TsConfig(_) => continue,
 
             Event::Unknown(ev) => {
                 debug!("Skipping unknown {ev}");
