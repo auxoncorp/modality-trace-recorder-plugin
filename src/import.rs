@@ -402,7 +402,7 @@ pub async fn import_streaming<R: Read + Send>(
     };
 
     let mut trd = RecorderData::read(&mut r)?;
-    let frequency = trd.ts_config_event.frequency;
+    let frequency = trd.timestamp_info.timer_frequency;
 
     if trd.header.kernel_port != KernelPortIdentity::FreeRtos {
         return Err(Error::UnsupportedKernelPortIdentity(trd.header.kernel_port));
@@ -420,7 +420,6 @@ pub async fn import_streaming<R: Read + Send>(
     let mut time_rollover_tracker = StreamingInstant::zero();
     let mut importer = StreamingImporter::begin(client, cfg.clone(), &trd).await?;
 
-    // TODO - consider synthesizing the first two events (TraceStart and TsConfig)
     while let Some((event_code, event)) = trd.read_event(&mut r)? {
         let mut attrs = HashMap::new();
 
@@ -458,6 +457,10 @@ pub async fn import_streaming<R: Read + Send>(
         );
 
         match event {
+            Event::TraceStart(_ev) => {
+                // TODO handle current task, default timeline, etc
+            }
+
             Event::IsrBegin(ev) | Event::IsrResume(ev) | Event::IsrDefine(ev) => {
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::IsrName).await?,
@@ -564,9 +567,21 @@ pub async fn import_streaming<R: Read + Send>(
                 );
                 attrs.insert(
                     importer
-                        .event_key(CommonEventAttrKey::MemoryHeapCounter)
+                        .event_key(CommonEventAttrKey::MemoryHeapCurrent)
                         .await?,
-                    AttrVal::Integer(ev.heap_counter.into()),
+                    AttrVal::Integer(ev.heap.current.into()),
+                );
+                attrs.insert(
+                    importer
+                        .event_key(CommonEventAttrKey::MemoryHeapHighMark)
+                        .await?,
+                    AttrVal::Integer(ev.heap.high_water_mark.into()),
+                );
+                attrs.insert(
+                    importer
+                        .event_key(CommonEventAttrKey::MemoryHeapMax)
+                        .await?,
+                    AttrVal::Integer(ev.heap.max.into()),
                 );
             }
 
@@ -592,6 +607,12 @@ pub async fn import_streaming<R: Read + Send>(
                     .contains(ObjectClass::Queue)
                 {
                     continue;
+                }
+                if let Some(name) = ev.name {
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::QueueName).await?,
+                        AttrVal::String(name.into()),
+                    );
                 }
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
@@ -620,6 +641,12 @@ pub async fn import_streaming<R: Read + Send>(
                     .contains(ObjectClass::Queue)
                 {
                     continue;
+                }
+                if let Some(name) = ev.name {
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::QueueName).await?,
+                        AttrVal::String(name.into()),
+                    );
                 }
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
@@ -651,6 +678,14 @@ pub async fn import_streaming<R: Read + Send>(
                 {
                     continue;
                 }
+                if let Some(name) = ev.name {
+                    attrs.insert(
+                        importer
+                            .event_key(CommonEventAttrKey::SemaphoreName)
+                            .await?,
+                        AttrVal::String(name.into()),
+                    );
+                }
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
@@ -679,6 +714,14 @@ pub async fn import_streaming<R: Read + Send>(
                     .contains(ObjectClass::Semaphore)
                 {
                     continue;
+                }
+                if let Some(name) = ev.name {
+                    attrs.insert(
+                        importer
+                            .event_key(CommonEventAttrKey::SemaphoreName)
+                            .await?,
+                        AttrVal::String(name.into()),
+                    );
                 }
                 attrs.insert(
                     importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
@@ -798,7 +841,7 @@ pub async fn import_streaming<R: Read + Send>(
             }
 
             // Skip These
-            Event::ObjectName(_) | Event::TraceStart(_) | Event::TsConfig(_) => continue,
+            Event::ObjectName(_) | Event::TsConfig(_) => continue,
 
             Event::Unknown(ev) => {
                 debug!("Skipping unknown {ev}");

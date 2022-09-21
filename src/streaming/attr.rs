@@ -12,16 +12,36 @@ pub enum TimelineAttrKey {
 
     #[display(fmt = "timeline.internal.trace_recorder.format_version")]
     FormatVersion,
-    #[display(fmt = "timeline.internal.trace_recorder.heap_counter")]
-    HeapCounter,
-    #[display(fmt = "timeline.internal.trace_recorder.session_counter")]
-    SessionCounter,
-    #[display(fmt = "timeline.internal.trace_recorder.tick_rate_hz")]
+    #[display(fmt = "timeline.internal.trace_recorder.cores")]
+    NumCores,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg")]
+    PlatformCfg,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version")]
+    PlatformCfgVersion,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version.major")]
+    PlatformCfgVersionMajor,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version.minor")]
+    PlatformCfgVersionMinor,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version.patch")]
+    PlatformCfgVersionPatch,
+    #[display(fmt = "timeline.internal.trace_recorder.heap.max")]
+    HeapSize,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.type")]
+    TimerType,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.frequency")]
+    TimerFreq,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.period")]
+    TimerPeriod,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.wraparounds")]
+    TimerWraps,
+    #[display(fmt = "timeline.internal.trace_recorder.os_tick.rate_hz")]
     TickRateHz,
-    #[display(fmt = "timeline.internal.trace_recorder.hwtc_type")]
-    HwTcType,
-    #[display(fmt = "timeline.internal.trace_recorder.htc_period")]
-    HtcPeriod,
+    #[display(fmt = "timeline.internal.trace_recorder.os_tick.count")]
+    TickCount,
+    #[display(fmt = "timeline.internal.trace_recorder.latest_timestamp.ticks")]
+    LatestTimestampTicks,
+    #[display(fmt = "timeline.internal.trace_recorder.latest_timestamp")]
+    LatestTimestamp,
 }
 
 impl From<CommonTimelineAttrKey> for TimelineAttrKey {
@@ -48,11 +68,22 @@ impl TimelineAttrKey {
             Common(Frequency),
             Common(IsrChainingThreshold),
             FormatVersion,
-            HeapCounter,
-            SessionCounter,
+            NumCores,
+            PlatformCfg,
+            PlatformCfgVersion,
+            PlatformCfgVersionMajor,
+            PlatformCfgVersionMinor,
+            PlatformCfgVersionPatch,
+            HeapSize,
             TickRateHz,
-            HwTcType,
-            HtcPeriod,
+            TimerType,
+            TimerFreq,
+            TimerPeriod,
+            TimerWraps,
+            TickRateHz,
+            TickCount,
+            LatestTimestampTicks,
+            LatestTimestamp,
         ]
     }
 }
