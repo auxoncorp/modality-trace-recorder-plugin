@@ -4,7 +4,7 @@ A [Modality][modality] reflector plugin suite and ingest adapter library for Per
 
 | Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | TCP   | ITM   |
 | :---:       | :---:             | :---:              | :---:       | :---: | :---: |
-| FreeRTOS    | v6                | v6                 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| FreeRTOS    | v6                | v10                | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 
 ## Getting Started
 

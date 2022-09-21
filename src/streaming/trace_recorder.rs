@@ -123,11 +123,9 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                     AttrVal::Integer(self.header.format_version.into())
                 }
                 TimelineAttrKey::NumCores => AttrVal::Integer(self.header.num_cores.into()),
-                TimelineAttrKey::PlatformCfg => {
-                    AttrVal::String(self.header.platform_cfg.clone().into())
-                }
+                TimelineAttrKey::PlatformCfg => AttrVal::String(self.header.platform_cfg.clone()),
                 TimelineAttrKey::PlatformCfgVersion => {
-                    AttrVal::String(self.header.platform_cfg_version.to_string().into())
+                    AttrVal::String(self.header.platform_cfg_version.to_string())
                 }
                 TimelineAttrKey::PlatformCfgVersionMajor => {
                     AttrVal::Integer(self.header.platform_cfg_version.major.into())

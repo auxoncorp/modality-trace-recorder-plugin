@@ -4,8 +4,9 @@ use clap::Parser;
 use goblin::elf::Elf;
 use itm::{DecoderError, Singles, TracePacket};
 use modality_trace_recorder_plugin::{
-    import, import::import_streaming, streaming::Command, tracing::try_init_tracing_subscriber,
-    Interruptor, ReflectorOpts, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
+    import, import::streaming::import as import_streaming, streaming::Command,
+    tracing::try_init_tracing_subscriber, Interruptor, ReflectorOpts, TraceRecorderConfig,
+    TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use probe_rs::{
     architecture::arm::{component::TraceSink, SwoConfig},

@@ -1542,7 +1542,7 @@ dependencies = [
 [[package]]
 name = "trace-recorder-parser"
 version = "0.2.0"
-source = "git+https://github.com/auxoncorp/trace-recorder-parser.git?branch=streaming-protocol-v10#fea6124b2d35b977944cf2ae520061f42261a69c"
+source = "git+https://github.com/auxoncorp/trace-recorder-parser.git?branch=streaming-protocol-v10#943381bb1e4cb66c13624ae81f5b9b64f0b9966e"
 dependencies = [
  "byteordered",
  "derive_more",
