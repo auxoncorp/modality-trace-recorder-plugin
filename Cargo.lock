@@ -1542,7 +1542,8 @@ dependencies = [
 [[package]]
 name = "trace-recorder-parser"
 version = "0.2.0"
-source = "git+https://github.com/auxoncorp/trace-recorder-parser.git?branch=streaming-protocol-v10#943381bb1e4cb66c13624ae81f5b9b64f0b9966e"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c98b9e19782836034ab357ac0755c96aca66e14939fcbc87b89c20e3aef35d6"
 dependencies = [
  "byteordered",
  "derive_more",

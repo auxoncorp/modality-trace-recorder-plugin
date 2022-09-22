@@ -48,8 +48,7 @@ modality-api = "0.1"
 modality-ingest-client = "0.2"
 modality-ingest-protocol = "0.1"
 modality-reflector-config = "0.2"
-# trace-recorder-parser = "0.2"
-trace-recorder-parser = { git = "https://github.com/auxoncorp/trace-recorder-parser.git", branch = "streaming-protocol-v10" }
+trace-recorder-parser = "0.2"
 
 [dev-dependencies]
 tempfile = "3.3"
