@@ -653,9 +653,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.132"
+version = "0.2.133"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8371e4e5341c3a96db127eb2465ac681ced4c433e01dd0e938adbef26ba93ba5"
+checksum = "c0f80d65747a3e43d1596c7c5492d95d5edddaabd45a7fcdb02b95f644164966"
 
 [[package]]
 name = "libusb1-sys"
@@ -738,9 +738,9 @@ dependencies = [
 
 [[package]]
 name = "modality-ingest-client"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbd675738d32d9787d2a332d9f247b8a9a696d0cbab2d6564e14ebbc9a1822c6"
+checksum = "c22ca3568632fe67f8c7f961fbf83572dffba3aca4ec37288887cc34d44bd89f"
 dependencies = [
  "minicbor",
  "modality-api",
@@ -781,7 +781,7 @@ dependencies = [
 
 [[package]]
 name = "modality-trace-recorder-plugin"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "clap",
@@ -905,9 +905,9 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f7254b99e31cad77da24b08ebf628882739a608578bb1bcdfc1f9c21260d7c0"
+checksum = "e82dad04139b71a90c080c8463fe0dc7902db5192d939bd0950f074d014339e1"
 
 [[package]]
 name = "openssl"
@@ -965,9 +965,9 @@ dependencies = [
 
 [[package]]
 name = "ordered-float"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96bcbab4bfea7a59c2c0fe47211a1ac4e3e96bea6eb446d704f310bc5c732ae2"
+checksum = "98ffdb14730ed2ef599c65810c15b000896e21e8776b512de0db0c3d7335cc2a"
 dependencies = [
  "num-traits",
 ]
@@ -1026,7 +1026,7 @@ dependencies = [
 [[package]]
 name = "probe-rs"
 version = "0.13.0"
-source = "git+https://github.com/probe-rs/probe-rs.git#e4b2214765670daa5d555a590c99cec6cf485874"
+source = "git+https://github.com/probe-rs/probe-rs.git#5d97a18c1f3beb53ff0cc77b65296dd270005fc4"
 dependencies = [
  "anyhow",
  "base64",
@@ -1056,7 +1056,7 @@ dependencies = [
 [[package]]
 name = "probe-rs-target"
 version = "0.13.0"
-source = "git+https://github.com/probe-rs/probe-rs.git#e4b2214765670daa5d555a590c99cec6cf485874"
+source = "git+https://github.com/probe-rs/probe-rs.git#5d97a18c1f3beb53ff0cc77b65296dd270005fc4"
 dependencies = [
  "base64",
  "jep106",
@@ -1388,9 +1388,9 @@ checksum = "e72d8b19ab05827afefcca66bf47040c1e66a0901eb814784c77d4ec118bd309"
 
 [[package]]
 name = "syn"
-version = "1.0.99"
+version = "1.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "58dbef6ec655055e20b86b15a8cc6d439cca19b667537ac6a1369572d151ab13"
+checksum = "52205623b1b0f064a4e71182c3b18ae902267282930c6d5462c91b859668426e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1541,13 +1541,13 @@ dependencies = [
 
 [[package]]
 name = "trace-recorder-parser"
-version = "0.1.8"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0a14a3ea7997c0bf3d2169e64b34746b4fcf71e9313dbe930318fa7ccfdee7d"
+checksum = "4c98b9e19782836034ab357ac0755c96aca66e14939fcbc87b89c20e3aef35d6"
 dependencies = [
  "byteordered",
  "derive_more",
- "ordered-float 3.0.0",
+ "ordered-float 3.1.0",
  "thiserror",
  "tracing",
 ]

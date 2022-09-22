@@ -96,22 +96,31 @@ pub enum CommonEventAttrKey {
     MemoryAddress,
     #[display(fmt = "event.size")]
     MemorySize,
-    #[display(fmt = "event.heap_counter")]
-    MemoryHeapCounter,
+    #[display(fmt = "event.internal.trace_recorder.heap.current")]
+    MemoryHeapCurrent,
+    #[display(fmt = "event.internal.trace_recorder.heap.high_mark")]
+    MemoryHeapHighMark,
+    #[display(fmt = "event.internal.trace_recorder.heap.max")]
+    MemoryHeapMax,
+
     #[display(fmt = "event.low_mark")]
     StackLowMark,
 
+    #[display(fmt = "event.queue")]
+    QueueName,
     #[display(fmt = "event.queue_length")]
     QueueLength,
     #[display(fmt = "event.messages_waiting")]
     QueueMessagesWaiting,
 
+    #[display(fmt = "event.semaphore")]
+    SemaphoreName,
     #[display(fmt = "event.count")]
     SemaphoreCount,
 
-    #[display(fmt = "event.trace_recorder.ticks_to_wait")]
+    #[display(fmt = "event.internal.trace_recorder.ticks_to_wait")]
     TicksToWait,
-    #[display(fmt = "event.trace_recorder.ns_to_wait")]
+    #[display(fmt = "event.internal.trace_recorder.ns_to_wait")]
     NanosToWait,
 
     #[display(fmt = "event.channel")]

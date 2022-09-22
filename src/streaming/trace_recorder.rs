@@ -6,7 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use derive_more::Display;
-use modality_api::AttrVal;
+use modality_api::{AttrVal, BigInt};
 use modality_ingest_protocol::InternedAttrKey;
 use std::collections::HashMap;
 use trace_recorder_parser::streaming::RecorderData;
@@ -26,11 +26,8 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
         startup_task_name: Option<&str>,
     ) -> Result<TimelineDetails<TimelineAttrKey>, Error> {
         let obj_handle = handle.object_handle();
-        let obj_class = self.object_data_table.class(obj_handle);
-        let obj_name = self
-            .symbol_table
-            .get(obj_handle)
-            .map(|ste| ste.symbol.to_string());
+        let obj_class = self.entry_table.class(obj_handle);
+        let obj_name = self.entry_table.symbol(obj_handle).map(|s| s.to_string());
         let (name, description) = match handle {
             ContextHandle::Task(task_handle) => {
                 let obj_name = obj_name.ok_or(Error::TaskPropertiesLookup(task_handle))?;
@@ -88,7 +85,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
 
                 // Only have ns resolution if frequency is non-zero
                 TimelineAttrKey::Common(CommonTimelineAttrKey::TimeResolution) => {
-                    match self.ts_config_event.frequency.resolution_ns() {
+                    match self.timestamp_info.timer_frequency.resolution_ns() {
                         None => continue,
                         Some(r) => AttrVal::Timestamp(r),
                     }
@@ -115,31 +112,56 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                     AttrVal::Integer(self.header.irq_priority_order.into())
                 }
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Frequency) => {
-                    AttrVal::Integer(u32::from(self.ts_config_event.frequency).into())
+                    AttrVal::Integer(u32::from(self.timestamp_info.timer_frequency).into())
                 }
                 TimelineAttrKey::Common(CommonTimelineAttrKey::IsrChainingThreshold) => {
-                    AttrVal::Integer(self.ts_config_event.isr_chaining_threshold.into())
+                    AttrVal::Integer(self.header.isr_tail_chaining_threshold.into())
                 }
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Custom(_)) => continue,
 
                 TimelineAttrKey::FormatVersion => {
                     AttrVal::Integer(self.header.format_version.into())
                 }
-                TimelineAttrKey::HeapCounter => AttrVal::Integer(self.header.heap_counter.into()),
-                TimelineAttrKey::SessionCounter => {
-                    AttrVal::Integer(self.start_event.session_counter.into())
+                TimelineAttrKey::NumCores => AttrVal::Integer(self.header.num_cores.into()),
+                TimelineAttrKey::PlatformCfg => AttrVal::String(self.header.platform_cfg.clone()),
+                TimelineAttrKey::PlatformCfgVersion => {
+                    AttrVal::String(self.header.platform_cfg_version.to_string())
+                }
+                TimelineAttrKey::PlatformCfgVersionMajor => {
+                    AttrVal::Integer(self.header.platform_cfg_version.major.into())
+                }
+                TimelineAttrKey::PlatformCfgVersionMinor => {
+                    AttrVal::Integer(self.header.platform_cfg_version.minor.into())
+                }
+                TimelineAttrKey::PlatformCfgVersionPatch => {
+                    AttrVal::Integer(self.header.platform_cfg_version.patch.into())
+                }
+                TimelineAttrKey::HeapSize => AttrVal::Integer(self.system_heap().max.into()),
+
+                TimelineAttrKey::TimerType => self.timestamp_info.timer_type.to_string().into(),
+                TimelineAttrKey::TimerFreq => {
+                    AttrVal::Integer(u32::from(self.timestamp_info.timer_frequency).into())
+                }
+                TimelineAttrKey::TimerPeriod => {
+                    AttrVal::Integer(self.timestamp_info.timer_period.into())
+                }
+                TimelineAttrKey::TimerWraps => {
+                    AttrVal::Integer(self.timestamp_info.timer_wraparounds.into())
                 }
                 TimelineAttrKey::TickRateHz => {
-                    AttrVal::Integer(self.ts_config_event.tick_rate_hz.into())
+                    AttrVal::Integer(u32::from(self.timestamp_info.os_tick_rate_hz).into())
                 }
-                TimelineAttrKey::HwTcType => self.ts_config_event.hwtc_type.to_string().into(),
-                TimelineAttrKey::HtcPeriod => {
-                    if let Some(htc_period) = self.ts_config_event.htc_period {
-                        AttrVal::Integer(htc_period.into())
-                    } else {
-                        continue;
-                    }
+                TimelineAttrKey::TickCount => {
+                    AttrVal::Integer(self.timestamp_info.os_tick_count.into())
                 }
+                TimelineAttrKey::LatestTimestampTicks => {
+                    BigInt::new_attr_val(self.timestamp_info.latest_timestamp.ticks().into())
+                }
+                TimelineAttrKey::LatestTimestamp => AttrVal::Timestamp(
+                    self.timestamp_info
+                        .timer_frequency
+                        .lossy_timestamp_ns(self.timestamp_info.latest_timestamp),
+                ),
             };
             let key = client.timeline_key(tak.clone()).await?;
             common_timeline_attr_kvs.insert(key, val);

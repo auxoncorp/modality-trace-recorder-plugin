@@ -4,7 +4,7 @@ A [Modality][modality] reflector plugin suite and ingest adapter library for Per
 
 | Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | TCP   | ITM   |
 | :---:       | :---:             | :---:              | :---:       | :---: | :---: |
-| FreeRTOS    | v6                | v6                 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
+| FreeRTOS    | v6                | v10                | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: |
 
 ## Getting Started
 
@@ -41,7 +41,7 @@ These sections are the same for each of the plugins.
 * `[ingest]` — Top-level ingest configuration.
   - `additional-timeline-attributes` — Array of key-value attribute pairs to add to every timeline seen by the plugin.
   - `override-timeline-attributes` — Array of key-value attribute pairs to override on every timeline seen by this plugin.
-  - `allow-insecure-tls` — Whether to allow insecure connections. Defaults to `true`.
+  - `allow-insecure-tls` — Whether to allow insecure connections. Defaults to `false`.
   - `protocol-parent-url` — URL to which this reflector will send its collected data.
 
 * `[metadata]` — Plugin configuration table.

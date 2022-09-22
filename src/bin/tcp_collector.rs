@@ -2,8 +2,9 @@
 
 use clap::Parser;
 use modality_trace_recorder_plugin::{
-    import::import_streaming, streaming::Command, tracing::try_init_tracing_subscriber,
-    Interruptor, ReflectorOpts, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
+    import::streaming::import as import_streaming, streaming::Command,
+    tracing::try_init_tracing_subscriber, Interruptor, ReflectorOpts, TraceRecorderConfig,
+    TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
