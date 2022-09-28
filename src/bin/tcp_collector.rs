@@ -8,6 +8,7 @@ use modality_trace_recorder_plugin::{
 };
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
+use std::time::{Duration, Instant};
 use tracing::debug;
 
 /// Collect trace recorder streaming protocol data from a TCP connection
@@ -118,10 +119,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let mut stream = match cfg.plugin.tcp_collector.connect_timeout {
-        Some(to) if !to.0.is_zero() => {
-            debug!(remote = %remote, timeout = %to.0, "Connecting to to remote");
-            TcpStream::connect_timeout(&remote, to.0.into())?
-        }
+        Some(to) if !to.0.is_zero() => connect_retry_loop(&remote, to.0.into())?,
         _ => {
             debug!(remote = %remote, "Connecting to to remote");
             TcpStream::connect(remote)?
@@ -162,4 +160,21 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+fn connect_retry_loop(
+    remote: &SocketAddr,
+    timeout: Duration,
+) -> Result<TcpStream, Box<dyn std::error::Error>> {
+    debug!(remote = %remote, timeout = ?timeout, "Connecting to to remote");
+    let start = Instant::now();
+    while Instant::now().duration_since(start) <= timeout {
+        match TcpStream::connect_timeout(remote, timeout) {
+            Ok(s) => return Ok(s),
+            Err(_e) => {
+                continue;
+            }
+        }
+    }
+    Ok(TcpStream::connect_timeout(remote, timeout)?)
 }
