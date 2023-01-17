@@ -64,8 +64,8 @@ pub struct ReflectorOpts {
 
 #[derive(Parser, Debug, Clone, Default)]
 pub struct TraceRecorderOpts {
-    /// Instead of 'USER_EVENT @ <task-name>', use the user event channel
-    /// as the event name (<channel> @ <task-name>)
+    /// Instead of `USER_EVENT @ <task-name>`, use the user event channel
+    /// as the event name (`<channel> @ <task-name>`)
     #[clap(
         long,
         name = "user-event-channel",
@@ -74,8 +74,8 @@ pub struct TraceRecorderOpts {
     )]
     pub user_event_channel: bool,
 
-    /// Instead of 'USER_EVENT @ <task-name>', use the user event format string
-    /// as the event name (<format-string> @ <task-name>)
+    /// Instead of `USER_EVENT @ <task-name>`, use the user event format string
+    /// as the event name (`<format-string> @ <task-name>`)
     #[clap(
         long,
         name = "user-event-format-string",
@@ -88,7 +88,7 @@ pub struct TraceRecorderOpts {
     /// channel is processed.
     /// Can be supplied multiple times.
     ///
-    /// Format is '<input-channel>:<output-event-name>'.
+    /// Format is `<input-channel>:<output-event-name>`.
     #[clap(
         long,
         name = "input-channel>:<output-event-name",
@@ -100,7 +100,7 @@ pub struct TraceRecorderOpts {
     /// formatted string is processed.
     /// Can be supplied multiple times.
     ///
-    /// Format is '<input-formatted-string>:<output-event-name>'.
+    /// Format is `<input-formatted-string>:<output-event-name>`.
     #[clap(
         long,
         name = "input-formatted-string>:<output-event-name",
@@ -112,7 +112,7 @@ pub struct TraceRecorderOpts {
     /// for user events matching the given channel and format string.
     /// Can be supplied multiple times.
     ///
-    /// Format is '<channel>:<format-string>:<attr-key>[,<attr-key>]'.
+    /// Format is `<channel>:<format-string>:<attr-key>[,<attr-key>]`.
     #[clap(
         long,
         name = "channel>:<format-string>:<attr-key>[,<attr-key>]",
