@@ -17,10 +17,10 @@ jobs:
           sudo apt-get install -y libusb-1.0-0-dev libftdi1-dev libudev-dev
 
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache target
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -73,10 +73,10 @@ jobs:
           vcpkg install libftdi1:x64-windows libusb:x64-windows
 
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache target
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
@@ -123,10 +123,10 @@ jobs:
           vcpkg install libftdi1:x64-windows libusb:x64-windows
 
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Cache target
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/registry
