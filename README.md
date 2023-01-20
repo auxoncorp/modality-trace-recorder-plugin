@@ -114,6 +114,229 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-it
   - `baud` — The desired baud rate of the SWO output.
   - `reset` — Reset the target on startup.
 
+### Configuration Examples
+
+The configuration example snippets below are based on the importer section
+but can also be applied to any of the collectors.
+
+Each example builds on the previous.
+
+The data was queried using [modality query](https://docs.auxon.io/modality/query.html) and was produced from the following
+[TraceRecorder][trace-recorder] instrumentation (truncated for brevity).
+
+```c
+// logging_info will write to a channel named "info"
+#define INFO(fmt, ...) logging_info(fmt, ##__VA_ARGS__)
+
+int main(void)
+{
+    // ...
+
+    INFO("System initialized");
+
+    // ...
+}
+
+static void sensor_task(void* params)
+{
+    int16_t adc;
+    traceString ch;
+
+    ch = xTraceRegisterString("adc");
+    while(1)
+    {
+        // ...
+        adc = read_adc();
+        vTracePrintF(ch, "%d", adc);
+        // ...
+    }
+}
+
+static void comms_task(void* params)
+{
+    traceString ch;
+    wire_msg_s wire_msg = {0};
+
+    ch = xTraceRegisterString("comms-tx");
+
+    // ...
+
+    INFO("Comms network ready");
+
+    while(1)
+    {
+        const comms_msg_s comms_msg = comms_recv();
+
+        // ...
+
+        wire_msg.magic0 = WIRE_MAGIC0;
+        wire_msg.magic1 = WIRE_MAGIC1;
+        wire_msg.type = WIRE_TYPE_SENSOR_DATA;
+        wire_msg.seqnum += 1;
+        wire_msg.adc = comms_msg.adc;
+
+        vTracePrintF(ch, "%u %u %d", wire_msg.type, wire_msg.seqnum, wire_msg.adc);
+
+        // ...
+    }
+}
+```
+
+#### Default
+
+```
+■  ║  ║  TRACE_START @ (startup)  [1272bab3d50d491691d0abefd1bc9cc0:00]
+║  ║  ║    task=(startup)
+║  ║  ║    timestamp=1190400ns
+║  ║  ║
+■  ║  ║  USER_EVENT @ (startup)  [1272bab3d50d491691d0abefd1bc9cc0:13]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=System initialized
+║  ║  ║    timestamp=7027200ns
+║  ║  ║
+║  ■  ║  USER_EVENT @ Sensor  [5528cf640e1045ea833335b809cfc02e:0130]
+║  ║  ║    arg0=-128
+║  ║  ║    channel=adc
+║  ║  ║    formatted_string=-128
+║  ║  ║    timestamp=262105600ns
+║  ║  ║
+║  ║  ■  USER_EVENT @ Comms  [8a0430ddb8c143299c01080926457436:04d6]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=Comms network ready
+║  ║  ║    timestamp=2173248000ns
+║  ║  ║
+║  ║  ■  USER_EVENT @ Comms  [8a0430ddb8c143299c01080926457436:04d8]
+║  ║  ║    arg0=240
+║  ║  ║    arg1=1
+║  ║  ║    arg2=-128
+║  ║  ║    channel=comms-tx
+║  ║  ║    formatted_string=240 1 -128
+║  ║  ║    timestamp=2173299200ns
+```
+
+#### startup-task-name
+
+```toml
+[plugins.ingest.importers.trace-recorder.metadata]
+startup-task-name = 'my-fw-img'
+```
+
+```
+■  ║  ║  TRACE_START @ my-fw-img  [a324dcfaddb6415b878741b0238f4cf3:00]
+║  ║  ║    task=(startup)
+║  ║  ║    timestamp=1190400ns
+║  ║  ║
+■  ║  ║  USER_EVENT @ my-fw-img  [a324dcfaddb6415b878741b0238f4cf3:13]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=System initialized
+║  ║  ║    timestamp=7027200ns
+║  ║  ║
+║  ■  ║  USER_EVENT @ Sensor  [8e1c7e7a3560498d932247bb100281f2:0130]
+║  ║  ║    arg0=-128
+║  ║  ║    channel=adc
+║  ║  ║    formatted_string=-128
+║  ║  ║    timestamp=262105600ns
+║  ║  ║
+║  ║  ■  USER_EVENT @ Comms  [ffe10d39ee5546e8aa0fc0450ee37ed0:04d6]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=Comms network ready
+║  ║  ║    timestamp=2173248000ns
+║  ║  ║
+║  ║  ■  USER_EVENT @ Comms  [ffe10d39ee5546e8aa0fc0450ee37ed0:04d8]
+║  ║  ║    arg0=240
+║  ║  ║    arg1=1
+║  ║  ║    arg2=-128
+║  ║  ║    channel=comms-tx
+║  ║  ║    formatted_string=240 1 -128
+║  ║  ║    timestamp=2173299200ns
+```
+
+#### user-event-channel
+
+```toml
+[plugins.ingest.importers.trace-recorder.metadata]
+startup-task-name = 'my-fw-img'
+user-event-channel = true
+```
+
+```
+■  ║  ║  TRACE_START @ my-fw-img  [381937af8be847f7a556829770e7ba77:00]
+║  ║  ║    task=(startup)
+║  ║  ║    timestamp=1190400ns
+║  ║  ║
+■  ║  ║  info @ my-fw-img  [381937af8be847f7a556829770e7ba77:13]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=System initialized
+║  ║  ║    timestamp=7027200ns
+║  ║  ║
+║  ■  ║  adc @ Sensor  [d19f58f7e235473a9799812cf7975a57:0130]
+║  ║  ║    arg0=-128
+║  ║  ║    channel=adc
+║  ║  ║    formatted_string=-128
+║  ║  ║    timestamp=262105600ns
+║  ║  ║
+║  ║  ■  info @ Comms  [24aa15eb92864a508ae7a962afafe9a4:04d6]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=Comms network ready
+║  ║  ║    timestamp=2173248000ns
+║  ║  ║
+║  ║  ■  comms-tx @ Comms  [24aa15eb92864a508ae7a962afafe9a4:04d8]
+║  ║  ║    arg0=240
+║  ║  ║    arg1=1
+║  ║  ║    arg2=-128
+║  ║  ║    channel=comms-tx
+║  ║  ║    formatted_string=240 1 -128
+║  ║  ║    timestamp=2173299200ns
+```
+
+#### user-event-fmt-arg-attr-keys
+
+```toml
+[plugins.ingest.importers.trace-recorder.metadata]
+startup-task-name = 'my-fw-img'
+user-event-channel = true
+
+    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
+    channel = 'comms-tx'
+    format-string = '%u %u %d'
+    attribute-keys = ['type', 'seqnum', 'adc']
+
+    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
+    channel = 'adc'
+    format-string = '%d'
+    attribute-keys = ['measurement']
+```
+
+```
+■  ║  ║  TRACE_START @ my-fw-img  [001e1d94336042e6bbbfdb3b04609ec4:00]
+║  ║  ║    task=(startup)
+║  ║  ║    timestamp=1190400ns
+║  ║  ║
+■  ║  ║  info @ my-fw-img  [001e1d94336042e6bbbfdb3b04609ec4:13]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=System initialized
+║  ║  ║    timestamp=7027200ns
+║  ║  ║
+║  ■  ║  adc @ Sensor  [8245e9ef77344e3f9698adb9d45487d4:0130]
+║  ║  ║    channel=adc
+║  ║  ║    formatted_string=-128
+║  ║  ║    measurement=-128
+║  ║  ║    timestamp=262105600ns
+║  ║  ║
+║  ║  ■  info @ Comms  [59be714493cc4d67b15c0ee459a9fc3d:04d6]
+║  ║  ║    channel=info
+║  ║  ║    formatted_string=Comms network ready
+║  ║  ║    timestamp=2173248000ns
+║  ║  ║
+║  ║  ■  comms-tx @ Comms  [59be714493cc4d67b15c0ee459a9fc3d:04d8]
+║  ║  ║    channel=comms-tx
+║  ║  ║    formatted_string=240 1 -128
+║  ║  ║    type=240
+║  ║  ║    seqnum=1
+║  ║  ║    adc=-128
+║  ║  ║    timestamp=2173299200ns
+```
+
 ## LICENSE
 
 See [LICENSE](./LICENSE) for more details.
