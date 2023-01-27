@@ -187,7 +187,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
 
 fn object_name(name: String, class: MaybeUnknownObjectClass, handle: ObjectHandle) -> String {
     if name.is_empty() {
-        format!("{}:{}:{}", UNNAMED_OBJECT, class, handle)
+        format!("{UNNAMED_OBJECT}:{class}:{handle}")
     } else {
         name
     }

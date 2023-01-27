@@ -61,7 +61,7 @@ async fn main() {
     match do_main().await {
         Ok(()) => (),
         Err(e) => {
-            eprintln!("{}", e);
+            eprintln!("{e}");
             let mut cause = e.source();
             while let Some(err) = cause {
                 eprintln!("Caused by: {err}");
