@@ -8,16 +8,23 @@ use modality_ingest_client::{
 };
 use modality_ingest_protocol::InternedAttrKey;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{self, Read, Seek, SeekFrom},
     str::FromStr,
 };
 use trace_recorder_parser::{
     streaming::HeaderInfo,
     time::Timestamp,
-    types::{Argument, KernelPortIdentity, ObjectHandle, UserEventArgRecordCount},
+    types::{
+        Argument, FormatString, FormattedString, KernelPortIdentity, ObjectHandle,
+        UserEventArgRecordCount, UserEventChannel,
+    },
 };
 use tracing::{debug, error, warn};
+use uuid::Uuid;
+
+const TIMELINE_ID_CHANNEL_NAME: &str = "modality-timeline-id";
+const TIMELINE_ID_FORMAT_STRING: &str = "name=%s,id=%s";
 
 pub mod snapshot;
 pub mod streaming;
@@ -129,14 +136,15 @@ pub(crate) type StreamingImporter =
 pub(crate) struct Importer<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
     single_task_timeline: bool,
     flatten_isr_timelines: bool,
+    use_timeline_id_channel: bool,
     startup_task_name: Option<String>,
 
     // Used to track interactions between tasks/ISRs
     startup_task_handle: ObjectHandle,
     handle_of_last_logged_context: ContextHandle,
     timestamp_of_last_event: Timestamp,
-    task_to_timeline_ids: HashMap<ObjectHandle, TimelineId>,
-    isr_to_timeline_ids: HashMap<ObjectHandle, TimelineId>,
+    object_to_timeline_ids: HashMap<ObjectHandle, TimelineId>,
+    registered_object_handles: HashSet<ObjectHandle>,
 
     common_timeline_attr_kvs: HashMap<InternedAttrKey, AttrVal>,
     client: Client<TAK, EAK>,
@@ -152,8 +160,10 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
 
         // Setup the root startup task timeline
         let startup_task_timeline_id = TimelineId::allocate();
-        let mut task_to_timeline_ids = HashMap::new();
-        task_to_timeline_ids.insert(startup_task_handle, startup_task_timeline_id);
+        let mut object_to_timeline_ids = HashMap::new();
+        object_to_timeline_ids.insert(startup_task_handle, startup_task_timeline_id);
+        let mut registered_object_handles = HashSet::new();
+        registered_object_handles.insert(startup_task_handle);
         let mut client = Client::new(client.open_timeline(startup_task_timeline_id).await?);
 
         let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
@@ -161,12 +171,13 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         let mut importer = Importer {
             single_task_timeline: cfg.plugin.single_task_timeline,
             flatten_isr_timelines: cfg.plugin.flatten_isr_timelines,
+            use_timeline_id_channel: cfg.plugin.use_timeline_id_channel,
             startup_task_name: cfg.plugin.startup_task_name,
             startup_task_handle,
             handle_of_last_logged_context: ContextHandle::Task(startup_task_handle),
             timestamp_of_last_event: Timestamp::zero(),
-            task_to_timeline_ids,
-            isr_to_timeline_ids: Default::default(),
+            object_to_timeline_ids,
+            registered_object_handles,
             common_timeline_attr_kvs,
             client,
         };
@@ -182,6 +193,82 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
     async fn end(self) -> Result<(), Error> {
         self.client.close().await?;
         Ok(())
+    }
+
+    fn handle_device_timeline_id_channel_event<TR: TraceRecorderExt<TAK, EAK>>(
+        &mut self,
+        channel: &UserEventChannel,
+        format_string: &FormatString,
+        formatted_string: &FormattedString,
+        args: &[Argument],
+        trd: &TR,
+    ) {
+        if !self.use_timeline_id_channel || channel.as_str() != TIMELINE_ID_CHANNEL_NAME {
+            return;
+        }
+
+        if format_string.as_str() != TIMELINE_ID_FORMAT_STRING {
+            warn!(
+                "Invalid format string '{}' on the channel '{TIMELINE_ID_CHANNEL_NAME}'",
+                format_string
+            );
+            return;
+        }
+
+        if args.len() != 2 {
+            warn!(
+                "Invalid argument length in '{}' on channel '{TIMELINE_ID_CHANNEL_NAME}'",
+                formatted_string
+            );
+            return;
+        }
+
+        let obj_name = match &args[0] {
+            Argument::String(s) => s.as_str(),
+            _ => {
+                warn!(
+                    "Invalid argument[0] type in '{}' on channel '{TIMELINE_ID_CHANNEL_NAME}'",
+                    formatted_string
+                );
+                return;
+            }
+        };
+
+        let obj_handle = match trd.object_handle(obj_name) {
+            Some(h) => h,
+            None => {
+                warn!(
+                    "Object with name '{obj_name}' has not be registered yet, ignoring timeline-id"
+                );
+                return;
+            }
+        };
+
+        if self.object_to_timeline_ids.contains_key(&obj_handle) {
+            warn!(
+                    "Object with name '{obj_name}' already has a timeline-id, ignoring provided timeline-id"
+                );
+            return;
+        }
+
+        let timeline_id = match &args[1] {
+            Argument::String(s) => match Uuid::parse_str(s.as_str()) {
+                Ok(id) => TimelineId::from(id),
+                Err(e) => {
+                    warn!("The provided timeline-id '{s}' is invalid. {e}");
+                    return;
+                }
+            },
+            _ => {
+                warn!(
+                    "Invalid argument[1] type in '{}' on channel '{TIMELINE_ID_CHANNEL_NAME}'",
+                    formatted_string
+                );
+                return;
+            }
+        };
+
+        self.object_to_timeline_ids.insert(obj_handle, timeline_id);
     }
 
     async fn event_key<K: Into<EAK>>(&mut self, key: K) -> Result<InternedAttrKey, Error> {
@@ -236,14 +323,14 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
             ContextHandle::Task(h) => (
                 ContextHandle::Task(h),
                 *self
-                    .task_to_timeline_ids
+                    .object_to_timeline_ids
                     .get(&h)
                     .ok_or(Error::TaskTimelineLookup(h))?,
             ),
             ContextHandle::Isr(h) => (
                 ContextHandle::Isr(h),
                 *self
-                    .isr_to_timeline_ids
+                    .object_to_timeline_ids
                     .get(&h)
                     .ok_or(Error::IsrTimelineLookup(h))?,
             ),
@@ -260,10 +347,11 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
                     task_event_handle
                 };
                 self.handle_of_last_logged_context = ContextHandle::Task(handle);
-                *self.task_to_timeline_ids.entry(handle).or_insert_with(|| {
-                    timeline_is_new = true;
-                    TimelineId::allocate()
-                })
+                timeline_is_new = self.registered_object_handles.insert(handle);
+                *self
+                    .object_to_timeline_ids
+                    .entry(handle)
+                    .or_insert_with(TimelineId::allocate)
             }
             // EventType::TaskSwitchIsrBegin | EventType::TaskSwitchIsrResume
             // Resume happens when we return to another ISR
@@ -274,13 +362,11 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
                     prev_timeline_id
                 } else {
                     self.handle_of_last_logged_context = ContextHandle::Isr(isr_event_handle);
+                    timeline_is_new = self.registered_object_handles.insert(isr_event_handle);
                     *self
-                        .isr_to_timeline_ids
+                        .object_to_timeline_ids
                         .entry(isr_event_handle)
-                        .or_insert_with(|| {
-                            timeline_is_new = true;
-                            TimelineId::allocate()
-                        })
+                        .or_insert_with(TimelineId::allocate)
                 }
             }
         };
@@ -317,6 +403,12 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         attr_kvs.insert(
             self.client.timeline_key(tl_details.description_key).await?,
             tl_details.description.into(),
+        );
+        attr_kvs.insert(
+            self.client
+                .timeline_key(tl_details.object_handle_key)
+                .await?,
+            i64::from(u32::from(tl_details.object_handle)).into(),
         );
 
         self.client.inner().timeline_metadata(attr_kvs).await?;

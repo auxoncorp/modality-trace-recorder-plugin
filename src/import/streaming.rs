@@ -371,6 +371,14 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
             }
 
             Event::User(ev) => {
+                importer.handle_device_timeline_id_channel_event(
+                    &ev.channel,
+                    &ev.format_string,
+                    &ev.formatted_string,
+                    &ev.args,
+                    &trd,
+                );
+
                 if cfg.plugin.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(

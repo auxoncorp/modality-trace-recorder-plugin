@@ -20,6 +20,14 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
         Ok(ObjectHandle::NO_TASK)
     }
 
+    fn object_handle(&self, obj_name: &str) -> Option<ObjectHandle> {
+        self.entry_table
+            .symbol_handle(obj_name, Some(ObjectClass::Task))
+            .or(self
+                .entry_table
+                .symbol_handle(obj_name, Some(ObjectClass::Isr)))
+    }
+
     fn timeline_details(
         &self,
         handle: ContextHandle,
@@ -65,6 +73,8 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             name,
             description_key: TimelineAttrKey::Common(CommonTimelineAttrKey::Description),
             description,
+            object_handle_key: TimelineAttrKey::Common(CommonTimelineAttrKey::ObjectHandle),
+            object_handle: obj_handle,
         })
     }
 
@@ -81,6 +91,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             let val = match tak {
                 // These are defined by the actual timeline
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Name)
+                | TimelineAttrKey::Common(CommonTimelineAttrKey::ObjectHandle)
                 | TimelineAttrKey::Common(CommonTimelineAttrKey::Description) => continue,
 
                 // Only have ns resolution if frequency is non-zero

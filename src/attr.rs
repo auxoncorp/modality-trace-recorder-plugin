@@ -57,6 +57,10 @@ pub enum CommonTimelineAttrKey {
     Frequency,
     #[display(fmt = "timeline.internal.trace_recorder.isr_tail_chaining_threshold")]
     IsrChainingThreshold,
+
+    #[display(fmt = "timeline.internal.trace_recorder.object_handle")]
+    ObjectHandle,
+
     #[display(fmt = "timeline.{_0}")]
     Custom(String),
 }
