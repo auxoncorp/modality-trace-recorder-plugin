@@ -35,6 +35,7 @@ pub struct PluginConfig {
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
     pub disable_task_interactions: bool,
+    pub use_timeline_id_channel: bool,
     pub ignored_object_classes: IgnoredObjectClasses,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
@@ -184,6 +185,11 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.disable_task_interactions
             },
+            use_timeline_id_channel: if tr_opts.use_timeline_id_channel {
+                true
+            } else {
+                cfg_plugin.use_timeline_id_channel
+            },
             ignored_object_classes: if !tr_opts.ignore_object_class.is_empty() {
                 tr_opts.ignore_object_class.clone().into_iter().collect()
             } else {
@@ -263,6 +269,7 @@ mod internal {
         pub single_task_timeline: bool,
         pub flatten_isr_timelines: bool,
         pub disable_task_interactions: bool,
+        pub use_timeline_id_channel: bool,
         pub ignored_object_classes: IgnoredObjectClasses,
         pub user_event_channel: bool,
         pub user_event_format_string: bool,
@@ -282,6 +289,7 @@ mod internal {
                 single_task_timeline: c.single_task_timeline,
                 flatten_isr_timelines: c.flatten_isr_timelines,
                 disable_task_interactions: c.disable_task_interactions,
+                use_timeline_id_channel: c.use_timeline_id_channel,
                 ignored_object_classes: c.ignored_object_classes,
                 user_event_channel: c.user_event_channel,
                 user_event_format_string: c.user_event_format_string,
@@ -482,6 +490,7 @@ user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
 disable-control-plane = true
+use-timeline-id-channel = true
 disable-task-interactions = true
 ignored-object-classes = ['queue', 'Semaphore']
 restart = true
@@ -574,6 +583,7 @@ reset = true
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
+                    use_timeline_id_channel: false,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
@@ -675,6 +685,7 @@ reset = true
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
+                    use_timeline_id_channel: false,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
@@ -778,6 +789,7 @@ reset = true
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
+                    use_timeline_id_channel: true,
                     ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
                         .into_iter()
                         .collect(),

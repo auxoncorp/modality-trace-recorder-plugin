@@ -44,6 +44,10 @@ pub async fn import<R: Read + Seek + Send>(
         );
     }
 
+    if cfg.plugin.use_timeline_id_channel {
+        warn!("Configuration field 'use-timeline-id-channel` is not supported in snapshot mode");
+    }
+
     let client =
         IngestClient::connect(&cfg.protocol_parent_url()?, cfg.ingest.allow_insecure_tls).await?;
     let client = client.authenticate(cfg.resolve_auth()?.into()).await?;

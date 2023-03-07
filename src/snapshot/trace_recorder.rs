@@ -32,6 +32,11 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             .ok_or(Error::MissingStartupTaskProperties)
     }
 
+    fn object_handle(&self, _obj_name: &str) -> Option<ObjectHandle> {
+        // Not supported in snapshot mode
+        None
+    }
+
     fn timeline_details(
         &self,
         handle: ContextHandle,
@@ -89,6 +94,8 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             name,
             description_key: TimelineAttrKey::Common(CommonTimelineAttrKey::Description),
             description,
+            object_handle_key: TimelineAttrKey::Common(CommonTimelineAttrKey::ObjectHandle),
+            object_handle: handle.object_handle(),
         })
     }
 
@@ -105,6 +112,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             let val = match tak {
                 // These are defined by the actual timeline
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Name)
+                | TimelineAttrKey::Common(CommonTimelineAttrKey::ObjectHandle)
                 | TimelineAttrKey::Common(CommonTimelineAttrKey::Description) => continue,
 
                 // Only have ns resolution if frequency is non-zero

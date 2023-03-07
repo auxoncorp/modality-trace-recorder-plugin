@@ -62,11 +62,15 @@ pub struct TimelineDetails<TAK> {
     pub name: String,
     pub description_key: TAK,
     pub description: String,
+    pub object_handle_key: TAK,
+    pub object_handle: ObjectHandle,
 }
 
 #[async_trait]
 pub trait TraceRecorderExt<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
     fn startup_task_handle(&self) -> Result<ObjectHandle, Error>;
+
+    fn object_handle(&self, obj_name: &str) -> Option<ObjectHandle>;
 
     fn timeline_details(
         &self,

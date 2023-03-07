@@ -133,6 +133,13 @@ pub struct TraceRecorderOpts {
     #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
     pub disable_task_interactions: bool,
 
+    /// Detect task/ISR timeline IDs from the device by reading events on the 'modality-timeline-id'
+    /// channel.
+    ///
+    /// Format is `name=<obj-name>,id=<timeline-id>`
+    #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
+    pub use_timeline_id_channel: bool,
+
     /// Use the provided initial startup task name instead of the default ('(startup)')
     #[clap(
         long,
