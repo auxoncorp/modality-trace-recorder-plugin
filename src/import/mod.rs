@@ -23,7 +23,7 @@ use trace_recorder_parser::{
 use tracing::{debug, error, warn};
 use uuid::Uuid;
 
-const TIMELINE_ID_CHANNEL_NAME: &str = "modality-timeline-id";
+const TIMELINE_ID_CHANNEL_NAME: &str = "modality_timeline_id";
 const TIMELINE_ID_FORMAT_STRING: &str = "name=%s,id=%s";
 
 pub mod snapshot;
