@@ -78,18 +78,22 @@ pub enum Error {
 }
 
 #[derive(
-    Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, serde_with::DeserializeFromStr,
+    Copy,
+    Clone,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Debug,
+    Default,
+    serde_with::DeserializeFromStr,
 )]
 pub enum ImportProtocol {
     Snapshot,
     Streaming,
+    #[default]
     Auto,
-}
-
-impl Default for ImportProtocol {
-    fn default() -> Self {
-        ImportProtocol::Auto
-    }
 }
 
 impl FromStr for ImportProtocol {
