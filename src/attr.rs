@@ -3,7 +3,7 @@ use modality_ingest_client::{BoundTimelineState, IngestClient, IngestError};
 use modality_ingest_protocol::InternedAttrKey;
 use std::{collections::HashMap, fmt, hash::Hash};
 
-pub trait AttrKeyIndex: Hash + Eq + fmt::Display {}
+pub trait AttrKeyIndex: Hash + Eq + Clone + fmt::Display {}
 
 #[derive(Clone, Debug)]
 pub struct AttrKeys<T: AttrKeyIndex>(HashMap<T, InternedAttrKey>);
@@ -27,6 +27,24 @@ impl<T: AttrKeyIndex> AttrKeys<T> {
             self.0.insert(key, interned_key);
             Ok(interned_key)
         }
+    }
+
+    pub(crate) fn remove_string_key_entry(&mut self, key: &str) -> Option<(T, InternedAttrKey)> {
+        self.0
+            .keys()
+            .find_map(|k| {
+                let k_str = k.to_string();
+                if k_str.as_str() == key {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .and_then(|k| self.0.remove_entry(&k))
+    }
+
+    pub(crate) fn insert(&mut self, key: T, interned_key: InternedAttrKey) {
+        self.0.insert(key, interned_key);
     }
 }
 

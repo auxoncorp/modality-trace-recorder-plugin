@@ -42,4 +42,15 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Client<TAK, EAK> {
     pub fn inner(&mut self) -> &mut IngestClient<BoundTimelineState> {
         &mut self.inner
     }
+
+    pub(crate) fn remove_timeline_string_key(
+        &mut self,
+        key: &str,
+    ) -> Option<(TAK, InternedAttrKey)> {
+        self.timeline_keys.remove_string_key_entry(key)
+    }
+
+    pub(crate) fn add_timeline_key(&mut self, key: TAK, interned_key: InternedAttrKey) {
+        self.timeline_keys.insert(key, interned_key)
+    }
 }

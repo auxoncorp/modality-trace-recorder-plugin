@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use derive_more::Display;
 use modality_api::{AttrVal, BigInt};
 use modality_ingest_protocol::InternedAttrKey;
+use modality_reflector_config::AttrKeyEqValuePair;
 use std::collections::HashMap;
 use trace_recorder_parser::streaming::RecorderData;
 use trace_recorder_parser::types::{ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT};
@@ -178,22 +179,49 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
             common_timeline_attr_kvs.insert(key, val);
         }
 
-        for kv in cfg
-            .ingest
-            .timeline_attributes
-            .additional_timeline_attributes
-            .iter()
-        {
-            let key = client
-                .timeline_key(TimelineAttrKey::Common(CommonTimelineAttrKey::Custom(
-                    kv.0.to_string(),
-                )))
-                .await?;
-            common_timeline_attr_kvs.insert(key, kv.1.clone());
-        }
+        merge_cfg_attributes(
+            &cfg.ingest
+                .timeline_attributes
+                .additional_timeline_attributes,
+            client,
+            &mut common_timeline_attr_kvs,
+        )
+        .await?;
+
+        merge_cfg_attributes(
+            &cfg.ingest.timeline_attributes.override_timeline_attributes,
+            client,
+            &mut common_timeline_attr_kvs,
+        )
+        .await?;
 
         Ok(common_timeline_attr_kvs)
     }
+}
+
+async fn merge_cfg_attributes(
+    attrs_to_merge: &[AttrKeyEqValuePair],
+    client: &mut Client<TimelineAttrKey, EventAttrKey>,
+    attrs: &mut HashMap<InternedAttrKey, AttrVal>,
+) -> Result<(), Error> {
+    for kv in attrs_to_merge.iter() {
+        let fully_qualified_key = format!("timeline.{}", kv.0);
+        match client.remove_timeline_string_key(&fully_qualified_key) {
+            Some((prev_key, interned_key)) => {
+                client.add_timeline_key(prev_key, interned_key);
+                attrs.insert(interned_key, kv.1.clone());
+            }
+            None => {
+                let key = client
+                    .timeline_key(TimelineAttrKey::Common(CommonTimelineAttrKey::Custom(
+                        kv.0.to_string(),
+                    )))
+                    .await?;
+                attrs.insert(key, kv.1.clone());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn object_name(name: String, class: MaybeUnknownObjectClass, handle: ObjectHandle) -> String {
