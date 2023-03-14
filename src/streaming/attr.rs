@@ -60,6 +60,7 @@ impl TimelineAttrKey {
             Common(RunId),
             Common(TimeDomain),
             Common(TimeResolution),
+            Common(ClockStyle),
             Common(Protocol),
             Common(KernelVersion),
             Common(KernelPort),
