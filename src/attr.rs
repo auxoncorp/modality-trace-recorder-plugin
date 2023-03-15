@@ -60,6 +60,8 @@ pub enum CommonTimelineAttrKey {
     TimeDomain,
     #[display(fmt = "timeline.time_resolution")]
     TimeResolution,
+    #[display(fmt = "timeline.clock_style")]
+    ClockStyle,
 
     #[display(fmt = "timeline.internal.trace_recorder.protocol")]
     Protocol,

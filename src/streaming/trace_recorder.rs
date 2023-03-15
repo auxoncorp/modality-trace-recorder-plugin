@@ -108,6 +108,7 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                 TimelineAttrKey::Common(CommonTimelineAttrKey::TimeDomain) => {
                     time_domain.to_string().into()
                 }
+                TimelineAttrKey::Common(CommonTimelineAttrKey::ClockStyle) => "relative".into(),
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Protocol) => {
                     self.protocol.to_string().into()
                 }
