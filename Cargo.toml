@@ -41,7 +41,7 @@ serde_with = "2.0"
 itm = "0.9.0-rc.1"
 probe-rs = "0.14"
 goblin = "0.5"
-clap = { version = "4.1", features = ["derive", "env", "color"] }
+clap = { version = "4.4", features = ["derive", "env", "color"] }
 ctrlc = { version = "3.2", features=["termination"] }
 exitcode = "1"
 modality-api = "0.1"
