@@ -1,10 +1,10 @@
-# modality-trace-recorder-plugin &emsp; ![ci] [![crates.io]](https://crates.io/crates/modality-trace-recorder-plugin) [![docs.rs]](https://docs.rs/modality-trace-recorder-plugin)
+# modality-trace-recorder-plugin &emsp; ![ci] [![crates.io]](https://crates.io/crates/modality-trace-recorder-plugin)
 
 A [Modality][modality] reflector plugin suite and ingest adapter library for Percepio's [TraceRecorder][trace-recorder] data.
 
 | Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | Streaming Ports |
 | :---:       | :---:             | :---:              | :---:       | :---:           |
-| FreeRTOS    | v6                | v10, v12, v13      | yes         | TCP, ITM        |
+| FreeRTOS    | v6                | v10, v12-v14       | yes         | TCP, ITM        |
 
 ## Getting Started
 
@@ -342,7 +342,7 @@ user-event-channel = true
 
 See [LICENSE](./LICENSE) for more details.
 
-Copyright 2022 [Auxon Corporation](https://auxon.io)
+Copyright 2024 [Auxon Corporation](https://auxon.io)
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
