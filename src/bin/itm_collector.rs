@@ -1,5 +1,3 @@
-#![deny(warnings, clippy::all)]
-
 use clap::Parser;
 use goblin::elf::Elf;
 use itm::{DecoderError, Singles, TracePacket};

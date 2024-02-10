@@ -50,7 +50,7 @@ These sections are the same for each of the plugins.
   - `startup-task-name` — Use the provided initial startup task name instead of the default (`(startup)`).
   - `single-task-timeline` — Use a single timeline for all tasks instead of a timeline per task. ISRs can still be represented with their own timelines or not.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
-  - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the 'modality-timeline-id' channel (format is `name=<obj-name>,id=<timeline-id>`).
+  - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the `modality_timeline_id` channel (format is `name=<obj-name>,id=<timeline-id>`).
   - `ignored-object-classes` — Array of object classes to ignore processing during ingest (e.g. `[queue, semaphore]`)
   - `user-event-channel` — Instead of `USER_EVENT @ <task-name>`, use the user event channel as the event name (`<channel> @ <task-name>`).
   - `user-event-format-string` — Instead of `USER_EVENT @ <task-name>`, use the user event format string as the event name (`<format-string> @ <task-name>`).

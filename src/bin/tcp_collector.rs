@@ -1,5 +1,3 @@
-#![deny(warnings, clippy::all)]
-
 use clap::Parser;
 use modality_trace_recorder_plugin::{
     import::streaming::import as import_streaming, streaming::Command,

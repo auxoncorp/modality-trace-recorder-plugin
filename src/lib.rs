@@ -1,5 +1,3 @@
-#![deny(warnings, clippy::all)]
-
 pub use attr::{AttrKeyIndex, AttrKeys, CommonEventAttrKey, CommonTimelineAttrKey};
 pub use auth::AuthTokenBytes;
 pub use client::Client;
