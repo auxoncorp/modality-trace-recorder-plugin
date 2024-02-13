@@ -1,0 +1,72 @@
+:name: emulate
+:description: This script runs the embedded firmware on an STM32F4 Discovery board.
+
+$name?="demo-firmware"
+$bin?=@build/demo-firmware
+$tap?="renode-tap0"
+
+include @renode/commands.py
+
+using sysbus
+mach create $name
+machine LoadPlatformDescription @platforms/boards/stm32f4_discovery-kit.repl
+machine LoadPlatformDescriptionFromString
+"""
+// Just to make the FreeRTOS network interface PHY discovery less noisy
+phy2: Network.EthernetPhysicalLayer @ ethernet 2
+    Id1: 0x0000
+    Id2: 0x0000
+
+phy3: Network.EthernetPhysicalLayer @ ethernet 3
+    Id1: 0x0000
+    Id2: 0x0000
+"""
+
+# Disable PHY1 from being probed
+ethernet.phy1 Id1 0
+ethernet.phy1 Id2 0
+
+# Silence warnings
+logLevel 3
+
+# See https://github.com/renode/renode/issues/290 for more info
+# Make to sure to run the ./renode/setup-network.sh script first
+emulation CreateSwitch "switch"
+connector Connect sysbus.ethernet switch
+emulation CreateTap $tap "tap"
+connector Connect host.tap switch
+
+# Virtual time ~= real time, default is 120
+cpu PerformanceInMips 1
+
+showAnalyzer sysbus.usart3
+
+# Set random board UNIQUE ID
+python "import _random"
+python "rand = _random.Random()"
+
+$id1 = `python "print rand.getrandbits(32)"`
+$id2 = `python "print rand.getrandbits(32)"`
+$id3 = `python "print rand.getrandbits(32)"`
+macro reset
+"""
+    sysbus LoadELF $bin
+
+    sysbus WriteDoubleWord 0x1FFF7A10 $id1
+    sysbus WriteDoubleWord 0x1FFF7A14 $id2
+    sysbus WriteDoubleWord 0x1FFF7A18 $id3
+
+    # zero the noinit variables
+    clear_modality_noint_vars
+"""
+
+# NOTE: when a mutation is injected, call
+# write_staged_mutation "mutator-uuid-str" "mutation-uuid-str"
+
+runMacro $reset
+
+#start
+emulation RunFor "00:00:30"
+echo "Shutting down"
+quit
+

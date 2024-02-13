@@ -7,6 +7,7 @@ description = "A Modality reflector plugin suite and ingest adapter library for 
 license = "Apache-2.0"
 repository = "https://github.com/auxoncorp/modality-trace-recorder-plugin"
 documentation = "https://docs.rs/modality-trace-recorder-plugin"
+exclude = ["test_system/"]
 
 [lib]
 name = "modality_trace_recorder_plugin"

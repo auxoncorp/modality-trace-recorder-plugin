@@ -1,0 +1,192 @@
+name: Integration Tests
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      package_channel:
+        description: 'Modality package channel (stable/nightly)'
+        required: true
+        default: 'nightly'
+        type: choice
+        options:
+        - stable
+        - nightly
+
+env:
+  MODALITY_URL: "http://localhost:14181/v1"
+  MODALITY_WORKSPACE: "ci-tests"
+  RENODE_CI_MODE: YES
+
+jobs:
+  demo:
+    name: Run, collect, and test
+    timeout-minutes: 30
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Print Environment
+        run: |
+          echo "GITHUB_WORKFLOW=$GITHUB_WORKFLOW"
+          echo "GITHUB_RUN_ID=$GITHUB_RUN_ID"
+          echo "GITHUB_RUN_NUMBER=$GITHUB_RUN_NUMBER"
+          echo "GITHUB_JOB=$GITHUB_JOB"
+          echo "GITHUB_ACTION=$GITHUB_ACTION"
+          echo "GITHUB_ACTOR=$GITHUB_ACTOR"
+          echo "GITHUB_REF=$GITHUB_REF"
+          echo "GITHUB_SHA=$GITHUB_SHA"
+          echo "PACKAGE_CHANNEL=${{inputs.package_channel}}"
+          docker --version
+
+      - name: Checkout Sources
+        uses: actions/checkout@v4
+
+      - name: Login to github container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.AUXON_GHCR_TOKEN }}
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev libftdi1-dev libudev-dev bridge-utils gcc-arm-none-eabi binutils-arm-none-eabi
+
+      - name: Install renode (latest)
+        run: |
+          cd /opt
+          sudo wget --quiet --output-document renode.tar.gz https://builds.renode.io/renode-latest.linux-portable.tar.gz
+          sudo mkdir renode
+          sudo tar xf renode.tar.gz -C renode --strip-components 1
+          sudo pip install -r /opt/renode/tests/requirements.txt
+          echo "PATH=/opt/renode:${PATH}" >> $GITHUB_ENV
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          toolchain: stable
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Install Auxon client packages
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          wget --no-verbose --quiet https://get.keygen.sh/auxon-io/auxon.deb -O /tmp/auxon.deb
+          sudo apt-get install -y /tmp/auxon.deb
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends modality-client conform deviant
+
+      - name: Start Modality server
+        run: |
+          image="ghcr.io/auxoncorp/modalityd-nightly:latest"
+          if [ "${{inputs.package_channel}}" == "stable" ]; then
+            image="ghcr.io/auxoncorp/modalityd:latest"
+          fi
+          mkdir -p modalityd_data
+          docker run \
+            --name modalityd \
+            --network=host \
+            -v "$(pwd)/modalityd_data:/data-dir" \
+            -e MODALITY_ACCEPT_EULA=Y \
+            -e MODALITY_LICENSE_KEY="${{secrets.MODALITY_LICENSE_KEY}}" \
+            -e NO_TLS=Y \
+            -d --rm \
+            ghcr.io/auxoncorp/modalityd-nightly:latest
+
+          curl --retry-max-time 30 --retry 10 --retry-connrefused ${{env.MODALITY_URL}}/alive
+          docker logs modalityd
+
+      - name: Setup initial Modality configuration
+        run: |
+          modality --version
+          modality config --modalityd ${{env.MODALITY_URL}}
+          modality user create --use ci
+          echo "MODALITY_AUTH_TOKEN=$(modality user auth-token)" >> $GITHUB_ENV
+          modality workspace create --use ${{env.MODALITY_WORKSPACE}} test_system/workspace.toml
+
+      - name: Update reflector plugins
+        run: |
+          sudo mkdir -p /usr/lib/modality-reflector-plugins/importers
+          sudo mkdir -p /usr/lib/modality-reflector-plugins/collectors
+          sudo cp target/release/modality-trace-recorder-importer /usr/lib/modality-reflector-plugins/importers/
+          sudo cp target/release/modality-trace-recorder-tcp-collector /usr/lib/modality-reflector-plugins/collectors/
+          sudo cp target/release/modality-trace-recorder-itm-collector /usr/lib/modality-reflector-plugins/collectors/
+
+      - name: Create specs
+        run: |
+          conform spec create --file test_system/specs/device.speqtr device-specs
+
+      - name: Setup test network
+        working-directory: test_system
+        run: sudo ./scripts/setup-network.sh &
+
+      - name: Build test system
+        working-directory: test_system
+        run: ./scripts/build.sh
+
+      - name: Start Modality Reflector
+        working-directory: test_system
+        run: |
+          image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
+          if [ "${{inputs.package_channel}}" == "stable" ]; then
+            image="ghcr.io/auxoncorp/modality-reflector:latest"
+          fi
+          docker run \
+            --name reflector \
+            --network=host \
+            -e INGEST_PROTOCOL_PARENT_URL="modality-ingest://127.0.0.1" \
+            -e MUTATION_PROTOCOL_PARENT_URL="modality-mutation://127.0.0.1" \
+            -v "/usr/lib/modality-reflector-plugins:/usr/lib/modality-reflector-plugins" \
+            -v "$(pwd)/reflector-config.toml:/reflector-config.toml" \
+            -e MODALITY_AUTH_TOKEN="${{env.MODALITY_AUTH_TOKEN}}" \
+            -e REFLECTOR_OPTS="--config /reflector-config.toml --collector trace-recorder-tcp" \
+            -d --rm \
+            ${image}
+
+      - name: Run the system
+        working-directory: test_system
+        env:
+          MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
+        run: |
+          ./scripts/run.sh
+          docker container stop reflector
+
+      - name: Inspect data
+        env:
+          MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
+        run: |
+          modality workspace list
+          modality workspace inspect ${{env.MODALITY_WORKSPACE}}
+          modality segment list
+
+      - name: Evaluate specs
+        env:
+          MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
+        run: |
+          conform spec eval --name device-specs
+
+      - name: Export Data
+        if: always()
+        env:
+          MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
+        run: |
+          datetime=$(date +'%Y-%m-%dT%H-%M-%SZ')
+          tarfile=trc_test_system_modality_data_${datetime}.tar.gz
+          echo TARBALL_NAME=${tarfile} >> $GITHUB_ENV
+
+          docker container stop modalityd
+          modality user auth-token > modalityd_data/user_auth_token
+          tar czvf ${tarfile} modalityd_data
+
+      - name: Upload Modality data
+        if: always()
+        uses: actions/upload-artifact@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: ${{ env.TARBALL_NAME }}
+          path: ${{ env.TARBALL_NAME }}
+          retention-days: 2
+          if-no-files-found: error

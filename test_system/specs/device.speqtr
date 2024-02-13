@@ -1,0 +1,120 @@
+# @author = "dev.automation@auxon.io"
+# @project = "Test System"
+
+# @type = "task-resources"
+behavior "Task Scheduling Resource Usage"
+    when "a stats event is logged for a task"
+        stats @ * (_.task != "IDLE") AS task_stats
+    end
+
+    prohibited case "the task's CPU runtime utilization never exceeds 75%"
+        (task_stats.task_run_time / task_stats.total_run_time) > 0.75
+    end
+
+    prohibited case "the task's stack usage never exceeds 70%"
+        (1.0 - (task_stats.stack_high_water / task_stats.stack_size)) > 0.70
+    end
+end
+
+# @type = "memory"
+behavior "Heap Usage"
+    prohibited case "the consumed heap never exceeds 80%"
+        MEMORY_ALLOC @ * AS alloc
+            AND
+        (alloc.internal.trace_recorder.memory.heap_counter / alloc.timeline.heap_size) > 0.80
+    end
+end
+
+# @type = "scheduler"
+behavior "Task Activation Time"
+    prohibited case "ready tasks are activated within 20 ms"
+        TASK_READY @ * (_.task != "IDLE" AND _.task != "TzCtrl" AND _.timeline.name != "init") as ready
+            FOLLOWED BY
+        TASK_ACTIVATE @ * (_.timeline.name = ready.task) AS activated
+            AND
+        (activated.timestamp - ready.timestamp) > 20ms
+    end
+end
+
+# @type = "error logs"
+behavior "No Errors"
+    prohibited case "no error messages exist"
+        * @ * (_.channel = "error" OR _.channel = "#WFR")
+    end
+end
+
+# @type = "led-timer-isr"
+behavior "LED Timer Interrupt"
+    when "the LED timer ISR begins"
+        TASK_SWITCH_ISR_BEGIN @ LEDTimerISR as isr_begin
+    end
+
+    until "the next LED timer ISR"
+        TASK_SWITCH_ISR_BEGIN @ LEDTimerISR
+    end
+
+    nominal case "an info message is logged"
+        isr_begin
+            FOLLOWED BY
+        info @ LEDTimerISR (_.formatted_string = "blink")
+    end
+
+    recovery case "a higher priority context is activated"
+        isr_begin
+            FOLLOWED BY
+        TASK_ACTIVATE @ *
+    end
+end
+
+# @type = "control-cycle"
+behavior "Control Cycle"
+    when "an ADC measurement is read"
+        adc @ Sensor as adc
+    end
+
+    until "the next ADC measurement is read"
+        adc @ Sensor
+    end
+
+    recovery case "a higher priority context is activated"
+        adc
+            FOLLOWED BY
+        QUEUE_SEND @ Sensor (_.queue = "adc_queue")
+            FOLLOWED BY
+        TASK_READY @ Sensor (_.task != "Actuator") as other_task
+            FOLLOWED BY
+        TASK_ACTIVATE @ * (_.timeline.name = other_task.task AND _.priority > 2)
+    end
+
+    nominal case "program execution follows the control cycle expectations"
+        adc
+            FOLLOWED BY
+        QUEUE_SEND @ Sensor (_.queue = "adc_queue")
+            FOLLOWED BY
+        TASK_READY @ Sensor (_.task = "Actuator")
+            FOLLOWED BY
+        TASK_ACTIVATE @ Actuator
+            FOLLOWED BY
+        QUEUE_RECEIVE @ Actuator (_.queue = "adc_queue")
+            FOLLOWED BY
+        pwm @ Actuator as pwm
+            FOLLOWED BY
+        QUEUE_SEND @ Actuator (_.queue = "comms_queue")
+            FOLLOWED BY
+        TASK_READY @ Actuator (_.task = "Comms")
+            FOLLOWED BY
+        TASK_ACTIVATE @ Comms
+            FOLLOWED BY
+        QUEUE_RECEIVE @ Comms (_.queue = "comms_queue")
+            FOLLOWED BY
+        comms_tx @ Comms (_.adc = adc.measurement AND _.pwm = pwm.value)
+    end
+end
+
+behavior "Tracing"
+    nominal case "Start event"
+        TRACE_START @ init (_.internal.trace_recorder.id = 1 AND _.internal.trace_recorder.event_count = 6)
+        # Should be the first event in the log
+        NOT PRECEDED BY *@*
+    end
+end
