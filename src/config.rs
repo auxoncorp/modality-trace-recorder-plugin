@@ -36,6 +36,7 @@ pub struct PluginConfig {
     pub flatten_isr_timelines: bool,
     pub disable_task_interactions: bool,
     pub use_timeline_id_channel: bool,
+    pub deviant_event_id_base: Option<u16>,
     pub ignored_object_classes: IgnoredObjectClasses,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
@@ -190,6 +191,9 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.use_timeline_id_channel
             },
+            deviant_event_id_base: tr_opts
+                .deviant_event_id_base
+                .or(cfg_plugin.deviant_event_id_base),
             ignored_object_classes: if !tr_opts.ignore_object_class.is_empty() {
                 tr_opts.ignore_object_class.clone().into_iter().collect()
             } else {
@@ -270,6 +274,7 @@ mod internal {
         pub flatten_isr_timelines: bool,
         pub disable_task_interactions: bool,
         pub use_timeline_id_channel: bool,
+        pub deviant_event_id_base: Option<u16>,
         pub ignored_object_classes: IgnoredObjectClasses,
         pub user_event_channel: bool,
         pub user_event_format_string: bool,
@@ -290,6 +295,7 @@ mod internal {
                 flatten_isr_timelines: c.flatten_isr_timelines,
                 disable_task_interactions: c.disable_task_interactions,
                 use_timeline_id_channel: c.use_timeline_id_channel,
+                deviant_event_id_base: c.deviant_event_id_base,
                 ignored_object_classes: c.ignored_object_classes,
                 user_event_channel: c.user_event_channel,
                 user_event_format_string: c.user_event_format_string,
@@ -584,6 +590,7 @@ reset = true
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
                     use_timeline_id_channel: false,
+                    deviant_event_id_base: None,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
@@ -686,6 +693,7 @@ reset = true
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
                     use_timeline_id_channel: false,
+                    deviant_event_id_base: None,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
@@ -790,6 +798,7 @@ reset = true
                     flatten_isr_timelines: true,
                     disable_task_interactions: true,
                     use_timeline_id_channel: true,
+                    deviant_event_id_base: None,
                     ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
                         .into_iter()
                         .collect(),

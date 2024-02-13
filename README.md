@@ -51,6 +51,7 @@ These sections are the same for each of the plugins.
   - `single-task-timeline` — Use a single timeline for all tasks instead of a timeline per task. ISRs can still be represented with their own timelines or not.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
   - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the `modality_timeline_id` channel (format is `name=<obj-name>,id=<timeline-id>`).
+  - `deviant-event-id-base` — Parse Deviant custom events using the provided base event ID.
   - `ignored-object-classes` — Array of object classes to ignore processing during ingest (e.g. `[queue, semaphore]`)
   - `user-event-channel` — Instead of `USER_EVENT @ <task-name>`, use the user event channel as the event name (`<channel> @ <task-name>`).
   - `user-event-format-string` — Instead of `USER_EVENT @ <task-name>`, use the user event format string as the event name (`<format-string> @ <task-name>`).
@@ -64,6 +65,47 @@ These sections are the same for each of the plugins.
     * `channel`— The input channel name to match on.
     * `format-string`— The input format string to match on.
     * `attribute-keys`— Array of Modality event attribute keys to use.
+
+#### Deviant Events
+
+When the `deviant-event-id-base` configuration is provided, Deviant related information will be parsed and mapped
+from TraceRecorder custom events to their reserved Modality event names and attributes.
+
+Expected event ID offset and data:
+* Event: `modality.mutator.announced`
+  - Event ID offset: 0
+  - data: `['mutator_id']`
+    - `mutator_id` is a 16-byte UUID array
+* Event: `modality.mutator.retired`
+  - Event ID offset: 1
+  - data: `['mutator_id']`
+    - `mutator_id` is a 16-byte UUID array
+* Event: `modality.mutation.command_communicated`
+  - Event ID offset: 2
+  - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    - `mutator_id` is a 16-byte UUID array
+    - `mutation_id` is a 16-byte UUID array
+    - `mutation_success` is a 4-byte (`uint32_t`) boolean
+* Event: `modality.mutation.clear_communicated`
+  - Event ID offset: 3
+  - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    - `mutator_id` is a 16-byte UUID array
+    - `mutation_id` is a 16-byte UUID array
+    - `mutation_success` is a 4-byte (`uint32_t`) boolean
+* Event: `modality.mutation.triggered`
+  - Event ID offset: 4
+  - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    - `mutator_id` is a 16-byte UUID array
+    - `mutation_id` is a 16-byte UUID array
+    - `mutation_success` is a 4-byte (`uint32_t`) boolean
+* Event: `modality.mutation.injected`
+  - Event ID offset: 5
+  - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    - `mutator_id` is a 16-byte UUID array
+    - `mutation_id` is a 16-byte UUID array
+    - `mutation_success` is a 4-byte (`uint32_t`) boolean
+
+See the [Deviant documentation](https://docs.auxon.io/deviant/) for more information on Mutators and Mutations.
 
 ### Importer Section
 

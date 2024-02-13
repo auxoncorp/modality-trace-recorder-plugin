@@ -140,6 +140,47 @@ pub struct TraceRecorderOpts {
     #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
     pub use_timeline_id_channel: bool,
 
+    /// Parse Deviant custom events using the provided base event ID.
+    ///
+    /// When enabled, Deviant related information will be parsed and mapped to their
+    /// reserved Modality event names and attributes.
+    ///
+    /// Event data:
+    /// * Event: `modality.mutator.announced`
+    ///   - Event ID offset: 0
+    ///   - data: `['mutator_id']`
+    ///     - `mutator_id` is a 16-byte UUID array
+    /// * Event: `modality.mutator.retired`
+    ///   - Event ID offset: 1
+    ///   - data: `['mutator_id']`
+    ///     - `mutator_id` is a 16-byte UUID array
+    /// * Event: `modality.mutation.command_communicated`
+    ///   - Event ID offset: 2
+    ///   - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    ///     - `mutator_id` is a 16-byte UUID array
+    ///     - `mutation_id` is a 16-byte UUID array
+    ///     - `mutation_success` is a 4-byte (uint32_t) boolean
+    /// * Event: `modality.mutation.clear_communicated`
+    ///   - Event ID offset: 3
+    ///   - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    ///     - `mutator_id` is a 16-byte UUID array
+    ///     - `mutation_id` is a 16-byte UUID array
+    ///     - `mutation_success` is a 4-byte (uint32_t) boolean
+    /// * Event: `modality.mutation.triggered`
+    ///   - Event ID offset: 4
+    ///   - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    ///     - `mutator_id` is a 16-byte UUID array
+    ///     - `mutation_id` is a 16-byte UUID array
+    ///     - `mutation_success` is a 4-byte (uint32_t) boolean
+    /// * Event: `modality.mutation.injected`
+    ///   - Event ID offset: 5
+    ///   - data: `['mutator_id', 'mutation_id', 'mutation_success']`
+    ///     - `mutator_id` is a 16-byte UUID array
+    ///     - `mutation_id` is a 16-byte UUID array
+    ///     - `mutation_success` is a 4-byte (uint32_t) boolean
+    #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
+    pub deviant_event_id_base: Option<u16>,
+
     /// Use the provided initial startup task name instead of the default ('(startup)')
     #[clap(
         long,

@@ -17,6 +17,7 @@ pub mod auth;
 pub mod client;
 pub mod config;
 pub mod context;
+pub mod deviant_event_parser;
 pub mod import;
 pub mod interruptor;
 pub mod opts;

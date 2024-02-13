@@ -888,9 +888,10 @@ dependencies = [
 
 [[package]]
 name = "modality-trace-recorder-plugin"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
+ "byteordered",
  "clap",
  "ctrlc",
  "derive_more",

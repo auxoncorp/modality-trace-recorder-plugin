@@ -1,3 +1,4 @@
+use crate::deviant_event_parser::DeviantEventParser;
 use crate::import::{arg_to_attr_val, Error, StreamingImporter};
 use crate::{CommonEventAttrKey, ContextSwitchOutcome, NanosecondsExt, TraceRecorderConfig};
 use modality_api::{AttrVal, BigInt};
@@ -28,6 +29,15 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
     if frequency.is_unitless() {
         warn!("Frequency is zero, time domain will be in unit ticks");
     }
+
+    let mut deviant_event_parser = if let Some(base_event_id) = cfg.plugin.deviant_event_id_base {
+        Some(DeviantEventParser::new(
+            trd.header.endianness,
+            base_event_id.into(),
+        )?)
+    } else {
+        None
+    };
 
     let client =
         IngestClient::connect(&cfg.protocol_parent_url()?, cfg.ingest.allow_insecure_tls).await?;
@@ -477,8 +487,51 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
             Event::ObjectName(_) | Event::TsConfig(_) => continue,
 
             Event::Unknown(ev) => {
-                debug!("Skipping unknown {ev}");
-                continue;
+                let maybe_dev = if let Some(p) = deviant_event_parser.as_mut() {
+                    p.parse(&ev)?
+                } else {
+                    None
+                };
+
+                if let Some(dev) = maybe_dev {
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::Name).await?,
+                        dev.kind.to_modality_name().into(),
+                    );
+                    attrs.insert(
+                        importer.event_key(CommonEventAttrKey::MutatorId).await?,
+                        dev.mutator_id.1,
+                    );
+                    attrs.insert(
+                        importer
+                            .event_key(CommonEventAttrKey::InternalMutatorId)
+                            .await?,
+                        dev.mutator_id.0.to_string().into(),
+                    );
+                    if let Some(m) = dev.mutation_id {
+                        attrs.insert(
+                            importer.event_key(CommonEventAttrKey::MutationId).await?,
+                            m.1,
+                        );
+                        attrs.insert(
+                            importer
+                                .event_key(CommonEventAttrKey::InternalMutationId)
+                                .await?,
+                            m.0.to_string().into(),
+                        );
+                    }
+                    if let Some(s) = dev.mutation_success {
+                        attrs.insert(
+                            importer
+                                .event_key(CommonEventAttrKey::MutationSuccess)
+                                .await?,
+                            s,
+                        );
+                    }
+                } else {
+                    debug!("Skipping unknown {ev}");
+                    continue;
+                }
             }
         }
 

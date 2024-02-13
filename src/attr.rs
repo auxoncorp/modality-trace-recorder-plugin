@@ -95,6 +95,16 @@ pub enum CommonEventAttrKey {
     RemoteTimelineId,
     #[display(fmt = "event.interaction.remote_timestamp")]
     RemoteTimestamp,
+    #[display(fmt = "event.mutator.id")]
+    MutatorId,
+    #[display(fmt = "event.internal.trace_recorder.mutator.id")]
+    InternalMutatorId,
+    #[display(fmt = "event.mutation.id")]
+    MutationId,
+    #[display(fmt = "event.internal.trace_recorder.mutation.id")]
+    InternalMutationId,
+    #[display(fmt = "event.mutation.success")]
+    MutationSuccess,
 
     #[display(fmt = "event.internal.trace_recorder.code")]
     EventCode,

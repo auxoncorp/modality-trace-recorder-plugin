@@ -1,6 +1,6 @@
 [package]
 name = "modality-trace-recorder-plugin"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite and ingest adapter library for Percepio's TraceRecorder data"
@@ -35,6 +35,7 @@ dirs = "4"
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 humantime = "2"
+byteordered = "0.6"
 async-trait = "0.1"
 serde = { version = "1.0", features=["derive"] }
 serde_with = "2.0"

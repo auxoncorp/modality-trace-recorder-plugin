@@ -28,8 +28,17 @@ pub enum Error {
     #[error(transparent)]
     StreamingTraceRecorder(#[from] streaming::Error),
 
+    #[error("Encountered an error with the Deviant custom event configuration. {0}.")]
+    DeviantEvent(String),
+
     #[error("Encountered an ingest client error. {0}")]
     Ingest(#[from] IngestError),
+
+    #[error(
+        "Encountered and IO error while reading the input stream ({})",
+        .0.kind()
+    )]
+    Io(#[from] std::io::Error),
 }
 
 pub trait NanosecondsExt {
