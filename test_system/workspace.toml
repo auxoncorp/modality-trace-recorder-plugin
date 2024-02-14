@@ -1,0 +1,5 @@
+[[segmentation-rule]]
+name = "by-run-id"
+attributes = ["run_id"]
+segment-name-template = "Run {timeline.run_id}"
+causally-partition-segments = true
