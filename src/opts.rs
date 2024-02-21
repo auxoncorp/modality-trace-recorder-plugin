@@ -178,7 +178,11 @@ pub struct TraceRecorderOpts {
     ///     - `mutator_id` is a 16-byte UUID array
     ///     - `mutation_id` is a 16-byte UUID array
     ///     - `mutation_success` is a 4-byte (uint32_t) boolean
-    #[clap(long, help_heading = "TRACE RECORDER CONFIGURATION")]
+    #[clap(
+        long,
+        verbatim_doc_comment,
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
     pub deviant_event_id_base: Option<u16>,
 
     /// Use the provided initial startup task name instead of the default ('(startup)')

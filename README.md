@@ -4,7 +4,7 @@ A [Modality][modality] reflector plugin suite and ingest adapter library for Per
 
 | Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | Streaming Ports |
 | :---:       | :---:             | :---:              | :---:       | :---:           |
-| FreeRTOS    | v6                | v10, v12-v14       | yes         | TCP, ITM        |
+| FreeRTOS    | v6                | v10, v12-v14       | yes         | TCP, ITM, RTT   |
 
 ## Getting Started
 
@@ -155,6 +155,30 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-it
   - `core` — The selected core to target. The default value is 0.
   - `clk` — The speed of the clock feeding the TPIU/SWO module in Hz.
   - `baud` — The desired baud rate of the SWO output.
+  - `reset` — Reset the target on startup.
+
+### RTT Collector Section
+
+These `metadata` fields are specific to the streaming RTT collector plugin.
+
+Note that individual plugin configuration goes in a specific table in your
+reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-rtt.metadata]`.
+
+* `[metadata]` — Plugin configuration table.
+  - `attach-timeout` — Specify a target attach timeout.
+    When provided, the plugin will continually attempt to attach and search for a valid
+    RTT control block anywhere in the target RAM.
+    Accepts durations like "10ms" or "1minute 2seconds 22ms".
+  - `disable-control-plane` — Disable sending control plane commands to the target.
+    By default, `CMD_SET_ACTIVE` is sent on startup and shutdown to start and stop tracing on the target.
+  - `restart` — Send a stop command before a start command to reset tracing on the target.
+  - `up-channel` — The RTT up (target to host) channel number to poll on. The default value is 1.
+  - `down-channel` — The RTT down (host to target) channel number to send start/stop commands on. The default value is 1.
+  - `probe-selector` — Select a specific probe instead of opening the first available one.
+  - `chip` — The target chip to attach to (e.g. `STM32F407VE`).
+  - `protocol` — Protocol used to connect to chip. Possible options: [`swd`, `jtag`]. The default value is `swd`.
+  - `speed` — The protocol speed in kHz. The default value is 4000.
+  - `core` — The selected core to target. The default value is 0.
   - `reset` — Reset the target on startup.
 
 ### Configuration Examples

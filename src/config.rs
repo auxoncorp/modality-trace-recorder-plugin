@@ -18,6 +18,7 @@ pub enum TraceRecorderConfigEntry {
     Importer,
     TcpCollector,
     ItmCollector,
+    RttCollector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -47,6 +48,7 @@ pub struct PluginConfig {
     pub import: ImportConfig,
     pub tcp_collector: TcpCollectorConfig,
     pub itm_collector: ItmCollectorConfig,
+    pub rtt_collector: RttCollectorConfig,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
@@ -84,28 +86,6 @@ pub struct ItmCollectorConfig {
     pub reset: bool,
 }
 
-#[derive(Clone, Debug, From, Into, Deref, serde_with::DeserializeFromStr)]
-pub struct ProbeSelector(pub probe_rs::DebugProbeSelector);
-
-impl PartialEq for ProbeSelector {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.vendor_id == other.0.vendor_id
-            && self.0.product_id == other.0.product_id
-            && self.0.serial_number == other.0.serial_number
-    }
-}
-
-impl Eq for ProbeSelector {}
-
-impl FromStr for ProbeSelector {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self(
-            probe_rs::DebugProbeSelector::from_str(s).map_err(|e| e.to_string())?,
-        ))
-    }
-}
-
 impl ItmCollectorConfig {
     pub const DEFAULT_STIMULUS_PORT: u8 = 1;
     pub const DEFAULT_PROTOCOL: probe_rs::WireProtocol = probe_rs::WireProtocol::Swd;
@@ -131,6 +111,70 @@ impl Default for ItmCollectorConfig {
             baud: None,
             reset: false,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case", default)]
+pub struct RttCollectorConfig {
+    pub attach_timeout: Option<HumanTime>,
+    pub disable_control_plane: bool,
+    pub restart: bool,
+    pub up_channel: usize,
+    pub down_channel: usize,
+    pub probe_selector: Option<ProbeSelector>,
+    pub chip: Option<String>,
+    pub protocol: probe_rs::WireProtocol,
+    pub speed: u32,
+    pub core: usize,
+    pub reset: bool,
+}
+
+impl RttCollectorConfig {
+    pub const DEFAULT_UP_CHANNEL: usize = 1;
+    pub const DEFAULT_DOWN_CHANNEL: usize = 1;
+    pub const DEFAULT_PROTOCOL: probe_rs::WireProtocol = probe_rs::WireProtocol::Swd;
+    pub const DEFAULT_SPEED: u32 = 4000;
+    pub const DEFAULT_CORE: usize = 0;
+}
+
+impl Default for RttCollectorConfig {
+    fn default() -> Self {
+        Self {
+            attach_timeout: None,
+            disable_control_plane: false,
+            restart: false,
+            up_channel: Self::DEFAULT_UP_CHANNEL,
+            down_channel: Self::DEFAULT_DOWN_CHANNEL,
+            probe_selector: None,
+            chip: None,
+            protocol: Self::DEFAULT_PROTOCOL,
+            speed: Self::DEFAULT_SPEED,
+            core: Self::DEFAULT_CORE,
+            reset: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, From, Into, Deref, serde_with::DeserializeFromStr)]
+pub struct ProbeSelector(pub probe_rs::DebugProbeSelector);
+
+impl PartialEq for ProbeSelector {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.vendor_id == other.0.vendor_id
+            && self.0.product_id == other.0.product_id
+            && self.0.serial_number == other.0.serial_number
+    }
+}
+
+impl Eq for ProbeSelector {}
+
+impl FromStr for ProbeSelector {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(
+            probe_rs::DebugProbeSelector::from_str(s).map_err(|e| e.to_string())?,
+        ))
     }
 }
 
@@ -238,6 +282,7 @@ impl TraceRecorderConfig {
             import: cfg_plugin.import,
             tcp_collector: cfg_plugin.tcp_collector,
             itm_collector: cfg_plugin.itm_collector,
+            rtt_collector: cfg_plugin.rtt_collector,
         };
 
         Ok(Self {
@@ -305,6 +350,7 @@ mod internal {
                 import: Default::default(),
                 tcp_collector: Default::default(),
                 itm_collector: Default::default(),
+                rtt_collector: Default::default(),
             }
         }
     }
@@ -368,6 +414,27 @@ mod internal {
             c
         }
     }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
+    #[serde(rename_all = "kebab-case", default)]
+    pub struct RttCollectorPluginConfig {
+        #[serde(flatten)]
+        pub common: CommonPluginConfig,
+        #[serde(flatten)]
+        pub rtt_collector: RttCollectorConfig,
+    }
+
+    impl From<RttCollectorPluginConfig> for PluginConfig {
+        fn from(pc: RttCollectorPluginConfig) -> Self {
+            let RttCollectorPluginConfig {
+                common,
+                rtt_collector,
+            } = pc;
+            let mut c = PluginConfig::from(common);
+            c.rtt_collector = rtt_collector;
+            c
+        }
+    }
 }
 
 impl PluginConfig {
@@ -375,7 +442,10 @@ impl PluginConfig {
         cfg: &Config,
         entry: TraceRecorderConfigEntry,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        use internal::{ImportPluginConfig, ItmCollectorPluginConfig, TcpCollectorPluginConfig};
+        use internal::{
+            ImportPluginConfig, ItmCollectorPluginConfig, RttCollectorPluginConfig,
+            TcpCollectorPluginConfig,
+        };
         match entry {
             TraceRecorderConfigEntry::Importer => {
                 Self::from_cfg_metadata::<ImportPluginConfig>(cfg).map(|c| c.into())
@@ -385,6 +455,9 @@ impl PluginConfig {
             }
             TraceRecorderConfigEntry::ItmCollector => {
                 Self::from_cfg_metadata::<ItmCollectorPluginConfig>(cfg).map(|c| c.into())
+            }
+            TraceRecorderConfigEntry::RttCollector => {
+                Self::from_cfg_metadata::<RttCollectorPluginConfig>(cfg).map(|c| c.into())
             }
         }
     }
@@ -527,6 +600,52 @@ reset = true
     event-name = 'MY_EVENT2'
 "#;
 
+    const RTT_COLLECTOR_CONFIG: &str = r#"[ingest]
+protocol-parent-url = 'modality-ingest://127.0.0.1:14182'
+additional-timeline-attributes = [
+    "ci_run=1",
+    "platform='FreeRTOS'",
+    "module='m3'",
+    "trc-mode='rtt'",
+]
+
+[metadata]
+run-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
+time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
+startup-task-name = 'm5'
+user-event-channel = true
+user-event-format-string = true
+single-task-timeline = true
+flatten-isr-timelines = true
+disable-control-plane = true
+use-timeline-id-channel = true
+disable-task-interactions = true
+ignored-object-classes = ['queue', 'Semaphore']
+attach-timeout = "100ms"
+restart = true
+up-channel = 1
+down-channel = 1
+probe-selector = '234:234'
+chip = 'stm32'
+protocol = 'Jtag'
+speed = 1234
+core = 1
+reset = true
+
+    [[metadata.user-event-fmt-arg-attr-keys]]
+    channel = 'stats'
+    format-string = '%s %u %d %u %u'
+    attribute-keys = ['task', 'stack_size', 'stack_high_water', 'task_run_time', 'total_run_time']
+
+    [[metadata.user-event-channel-name]]
+    channel = 'act-cmd'
+    event-name = 'MY_EVENT'
+
+    [[metadata.user-event-formatted-string-name]]
+    formatted-string = 'found 1 thing'
+    event-name = 'MY_EVENT2'
+"#;
+
     #[test]
     fn import_cfg() {
         let dir = tempfile::tempdir().unwrap();
@@ -625,6 +744,7 @@ reset = true
                     },
                     tcp_collector: Default::default(),
                     itm_collector: Default::default(),
+                    rtt_collector: Default::default(),
                 },
             }
         );
@@ -730,6 +850,7 @@ reset = true
                         remote: "127.0.0.1:8888".parse::<SocketAddr>().unwrap().into(),
                     },
                     itm_collector: Default::default(),
+                    rtt_collector: Default::default(),
                 },
             }
         );
@@ -846,7 +967,123 @@ reset = true
                         clk: 222.into(),
                         baud: 4444.into(),
                         reset: true,
-                    }
+                    },
+                    rtt_collector: Default::default(),
+                },
+            }
+        );
+    }
+
+    #[test]
+    fn rtt_collector_cfg() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("my_config.toml");
+        {
+            let mut f = File::create(&path).unwrap();
+            f.write_all(RTT_COLLECTOR_CONFIG.as_bytes()).unwrap();
+            f.flush().unwrap();
+        }
+
+        let cfg = TraceRecorderConfig::load_merge_with_opts(
+            TraceRecorderConfigEntry::RttCollector,
+            ReflectorOpts {
+                config_file: Some(path.to_path_buf()),
+                ..Default::default()
+            },
+            Default::default(),
+        )
+        .unwrap();
+
+        env::set_var(CONFIG_ENV_VAR, path);
+        let env_cfg = TraceRecorderConfig::load_merge_with_opts(
+            TraceRecorderConfigEntry::RttCollector,
+            Default::default(),
+            Default::default(),
+        )
+        .unwrap();
+        env::remove_var(CONFIG_ENV_VAR);
+        assert_eq!(cfg, env_cfg);
+
+        assert_eq!(
+            cfg,
+            TraceRecorderConfig {
+                auth_token: None,
+                ingest: TopLevelIngest {
+                    protocol_parent_url: Url::parse("modality-ingest://127.0.0.1:14182")
+                        .unwrap()
+                        .into(),
+                    allow_insecure_tls: false,
+                    protocol_child_port: None,
+                    timeline_attributes: TimelineAttributes {
+                        additional_timeline_attributes: vec![
+                            AttrKeyEqValuePair::from_str("ci_run=1").unwrap(),
+                            AttrKeyEqValuePair::from_str("platform='FreeRTOS'").unwrap(),
+                            AttrKeyEqValuePair::from_str("module='m3'").unwrap(),
+                            AttrKeyEqValuePair::from_str("trc-mode='rtt'").unwrap(),
+                        ],
+                        override_timeline_attributes: Default::default(),
+                    },
+                    max_write_batch_staleness: None,
+                },
+                plugin: PluginConfig {
+                    run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
+                        .unwrap()
+                        .into(),
+                    time_domain: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
+                        .unwrap()
+                        .into(),
+                    startup_task_name: "m5".to_owned().into(),
+                    single_task_timeline: true,
+                    flatten_isr_timelines: true,
+                    disable_task_interactions: true,
+                    use_timeline_id_channel: true,
+                    deviant_event_id_base: None,
+                    ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
+                        .into_iter()
+                        .collect(),
+                    user_event_channel: true,
+                    user_event_format_string: true,
+                    user_event_channel_rename_map: vec![RenameMapItem {
+                        input: "act-cmd".to_owned(),
+                        event_name: "MY_EVENT".to_owned()
+                    }]
+                    .into_iter()
+                    .collect(),
+                    user_event_formatted_string_rename_map: vec![RenameMapItem {
+                        input: "found 1 thing".to_owned(),
+                        event_name: "MY_EVENT2".to_owned()
+                    }]
+                    .into_iter()
+                    .collect(),
+                    user_event_fmt_arg_attr_keys: vec![FormatArgAttributeKeysItem {
+                        channel: "stats".to_owned(),
+                        format_string: "%s %u %d %u %u".to_owned(),
+                        arg_attr_keys: vec![
+                            "task".to_owned(),
+                            "stack_size".to_owned(),
+                            "stack_high_water".to_owned(),
+                            "task_run_time".to_owned(),
+                            "total_run_time".to_owned()
+                        ],
+                    }]
+                    .into_iter()
+                    .collect(),
+                    import: Default::default(),
+                    tcp_collector: Default::default(),
+                    itm_collector: Default::default(),
+                    rtt_collector: RttCollectorConfig {
+                        attach_timeout: HumanTime::from_str("100ms").unwrap().into(),
+                        disable_control_plane: true,
+                        restart: true,
+                        up_channel: 1,
+                        down_channel: 1,
+                        probe_selector: ProbeSelector::from_str("234:234").unwrap().into(),
+                        chip: "stm32".to_owned().into(),
+                        protocol: probe_rs::WireProtocol::Jtag,
+                        speed: 1234,
+                        core: 1,
+                        reset: true,
+                    },
                 },
             }
         );

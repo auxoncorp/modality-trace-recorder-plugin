@@ -199,6 +199,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(ps) = &opts.probe_selector {
         trc_cfg.plugin.itm_collector.probe_selector = Some(ps.clone().into());
     }
+    if let Some(c) = opts.chip {
+        trc_cfg.plugin.rtt_collector.chip = Some(c);
+    }
     if let Some(p) = opts.protocol {
         trc_cfg.plugin.itm_collector.protocol = p;
     }
@@ -274,9 +277,8 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         let probes = Probe::list_all();
         if probes.is_empty() {
             return Err(Error::NoProbesAvailable.into());
-        } else {
-            probes[0].open()?
         }
+        probes[0].open()?
     };
 
     debug!(protocol = %trc_cfg.plugin.itm_collector.protocol, speed = trc_cfg.plugin.itm_collector.speed, "Configuring probe");
