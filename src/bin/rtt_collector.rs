@@ -145,7 +145,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     })?;
 
     let mut trc_cfg = TraceRecorderConfig::load_merge_with_opts(
-        TraceRecorderConfigEntry::ItmCollector,
+        TraceRecorderConfigEntry::RttCollector,
         opts.rf_opts,
         opts.tr_opts,
     )?;

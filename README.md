@@ -169,6 +169,7 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-rt
     When provided, the plugin will continually attempt to attach and search for a valid
     RTT control block anywhere in the target RAM.
     Accepts durations like "10ms" or "1minute 2seconds 22ms".
+    See the [RTT timing section](https://docs.rs/probe-rs-rtt/0.14.2/probe_rs_rtt/struct.Rtt.html#examples-of-how-timing-between-host-and-target-effects-the-results) for more information.
   - `disable-control-plane` — Disable sending control plane commands to the target.
     By default, `CMD_SET_ACTIVE` is sent on startup and shutdown to start and stop tracing on the target.
   - `restart` — Send a stop command before a start command to reset tracing on the target.
