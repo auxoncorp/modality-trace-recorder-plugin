@@ -9,6 +9,6 @@ set -euo pipefail
 
 sleep 1
 
-modality internal sync-indices
+modality workspace sync-indices
 
 exit 0

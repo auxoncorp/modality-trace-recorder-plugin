@@ -176,8 +176,9 @@ jobs:
           tarfile=trc_test_system_modality_data_${datetime}.tar.gz
           echo TARBALL_NAME=${tarfile} >> $GITHUB_ENV
 
-          docker container stop modalityd
+          time docker container stop -s SIGTERM -t 20 modalityd
           modality user auth-token > modalityd_data/user_auth_token
+          rm -rf modalityd_data/index_invalidation_events
           tar czvf ${tarfile} modalityd_data
 
       - name: Upload Modality data

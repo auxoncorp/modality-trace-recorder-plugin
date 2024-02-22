@@ -86,6 +86,20 @@ behavior "Control Cycle"
         TASK_ACTIVATE @ * (_.timeline.name = other_task.task AND _.priority > 2)
     end
 
+    recovery case "a higher priority context is activated"
+        adc
+            FOLLOWED BY
+        QUEUE_SEND @ Sensor (_.queue = "adc_queue")
+            FOLLOWED BY
+        TASK_READY @ Sensor (_.task = "Actuator")
+            FOLLOWED BY
+        TASK_ACTIVATE @ Actuator
+            FOLLOWED BY
+        TASK_READY @ Actuator (_.task != "Actuator") as other_task
+            FOLLOWED BY
+        TASK_ACTIVATE @ * (_.timeline.name = other_task.task AND _.priority > 2)
+    end
+
     nominal case "program execution follows the control cycle expectations"
         adc
             FOLLOWED BY
