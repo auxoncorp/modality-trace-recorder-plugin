@@ -10,6 +10,7 @@ use probe_rs::{
 use probe_rs_rtt::{Rtt, UpChannel};
 use std::{
     io,
+    path::PathBuf,
     time::{Duration, Instant},
 };
 use thiserror::Error;
@@ -104,6 +105,15 @@ struct Opts {
     /// Reset the target on startup.
     #[clap(long, name = "reset", help_heading = "PROBE CONFIGURATION")]
     pub reset: bool,
+
+    /// Chip description YAML file path.
+    /// Provides custom target descriptions based on CMSIS Pack files.
+    #[clap(
+        long,
+        name = "chip-description-path",
+        help_heading = "PROBE CONFIGURATION"
+    )]
+    pub chip_description_path: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -183,6 +193,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if opts.reset {
         trc_cfg.plugin.rtt_collector.reset = true;
     }
+    if let Some(cd) = &opts.chip_description_path {
+        trc_cfg.plugin.rtt_collector.chip_description_path = Some(cd.clone());
+    }
 
     let chip = trc_cfg
         .plugin
@@ -190,6 +203,11 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         .chip
         .clone()
         .ok_or(Error::MissingChip)?;
+
+    if let Some(chip_desc) = &trc_cfg.plugin.rtt_collector.chip_description_path {
+        debug!(path = %chip_desc.display(), "Adding custom chip description");
+        probe_rs::config::add_target_from_yaml(chip_desc)?;
+    }
 
     let mut probe = if let Some(probe_selector) = &trc_cfg.plugin.rtt_collector.probe_selector {
         debug!(probe_selector = %probe_selector.0, "Opening selected probe");

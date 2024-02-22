@@ -132,6 +132,15 @@ struct Opts {
     /// Reset the target on startup.
     #[clap(long, name = "reset", help_heading = "PROBE CONFIGURATION")]
     pub reset: bool,
+
+    /// Chip description YAML file path.
+    /// Provides custom target descriptions based on CMSIS Pack files.
+    #[clap(
+        long,
+        name = "chip-description-path",
+        help_heading = "PROBE CONFIGURATION"
+    )]
+    pub chip_description_path: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -220,6 +229,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if opts.reset {
         trc_cfg.plugin.itm_collector.reset = true;
     }
+    if let Some(cd) = &opts.chip_description_path {
+        trc_cfg.plugin.itm_collector.chip_description_path = Some(cd.clone());
+    }
 
     if !trc_cfg.plugin.itm_collector.disable_control_plane
         && trc_cfg.plugin.itm_collector.elf_file.is_none()
@@ -241,6 +253,11 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         .chip
         .clone()
         .ok_or(Error::MissingChip)?;
+
+    if let Some(chip_desc) = &trc_cfg.plugin.itm_collector.chip_description_path {
+        debug!(path = %chip_desc.display(), "Adding custom chip description");
+        probe_rs::config::add_target_from_yaml(chip_desc)?;
+    }
 
     if trc_cfg.plugin.itm_collector.stimulus_port > 31 {
         return Err(Error::InvalidStimulusPort(trc_cfg.plugin.itm_collector.stimulus_port).into());

@@ -156,6 +156,9 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-it
   - `clk` — The speed of the clock feeding the TPIU/SWO module in Hz.
   - `baud` — The desired baud rate of the SWO output.
   - `reset` — Reset the target on startup.
+  - `chip-description-path` — Provides custom target descriptions based on CMSIS Pack files.
+    See the [probe-rs target extraction](https://probe.rs/docs/knowledge-base/cmsis-packs/#target-extraction) section for
+    more information.
 
 ### RTT Collector Section
 
@@ -181,6 +184,9 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-rt
   - `speed` — The protocol speed in kHz. The default value is 4000.
   - `core` — The selected core to target. The default value is 0.
   - `reset` — Reset the target on startup.
+  - `chip-description-path` — Provides custom target descriptions based on CMSIS Pack files.
+    See the [probe-rs target extraction](https://probe.rs/docs/knowledge-base/cmsis-packs/#target-extraction) section for
+    more information.
 
 ### Configuration Examples
 

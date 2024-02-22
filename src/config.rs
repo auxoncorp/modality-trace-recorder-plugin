@@ -84,6 +84,7 @@ pub struct ItmCollectorConfig {
     pub clk: Option<u32>,
     pub baud: Option<u32>,
     pub reset: bool,
+    pub chip_description_path: Option<PathBuf>,
 }
 
 impl ItmCollectorConfig {
@@ -110,6 +111,7 @@ impl Default for ItmCollectorConfig {
             clk: None,
             baud: None,
             reset: false,
+            chip_description_path: None,
         }
     }
 }
@@ -128,6 +130,7 @@ pub struct RttCollectorConfig {
     pub speed: u32,
     pub core: usize,
     pub reset: bool,
+    pub chip_description_path: Option<PathBuf>,
 }
 
 impl RttCollectorConfig {
@@ -152,6 +155,7 @@ impl Default for RttCollectorConfig {
             speed: Self::DEFAULT_SPEED,
             core: Self::DEFAULT_CORE,
             reset: false,
+            chip_description_path: None,
         }
     }
 }
@@ -585,6 +589,7 @@ core = 1
 clk = 222
 baud = 4444
 reset = true
+chip-description-path = "/tmp/S32K_Series.yaml"
 
     [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
@@ -631,6 +636,7 @@ protocol = 'Jtag'
 speed = 1234
 core = 1
 reset = true
+chip-description-path = "/tmp/S32K_Series.yaml"
 
     [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
@@ -967,6 +973,7 @@ reset = true
                         clk: 222.into(),
                         baud: 4444.into(),
                         reset: true,
+                        chip_description_path: PathBuf::from("/tmp/S32K_Series.yaml").into(),
                     },
                     rtt_collector: Default::default(),
                 },
@@ -1083,6 +1090,7 @@ reset = true
                         speed: 1234,
                         core: 1,
                         reset: true,
+                        chip_description_path: PathBuf::from("/tmp/S32K_Series.yaml").into(),
                     },
                 },
             }
