@@ -5,11 +5,13 @@ use modality_trace_recorder_plugin::{
     TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use probe_rs::{
-    config::MemoryRegion, Core, DebugProbeSelector, Permissions, Probe, Session, WireProtocol,
+    config::MemoryRegion,
+    probe::{list::Lister, DebugProbeSelector, WireProtocol},
+    rtt::{Rtt, UpChannel},
+    Core, Permissions, Session,
 };
-use probe_rs_rtt::{Rtt, UpChannel};
 use std::{
-    io,
+    fs, io,
     path::PathBuf,
     time::{Duration, Instant},
 };
@@ -206,19 +208,21 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(chip_desc) = &trc_cfg.plugin.rtt_collector.chip_description_path {
         debug!(path = %chip_desc.display(), "Adding custom chip description");
-        probe_rs::config::add_target_from_yaml(chip_desc)?;
+        let f = fs::File::open(chip_desc)?;
+        probe_rs::config::add_target_from_yaml(f)?;
     }
 
+    let lister = Lister::new();
     let mut probe = if let Some(probe_selector) = &trc_cfg.plugin.rtt_collector.probe_selector {
         debug!(probe_selector = %probe_selector.0, "Opening selected probe");
-        Probe::open(probe_selector.0.clone())?
+        lister.open(probe_selector.0.clone())?
     } else {
         debug!("Opening first available probe");
-        let probes = Probe::list_all();
+        let probes = lister.list_all();
         if probes.is_empty() {
             return Err(Error::NoProbesAvailable.into());
         }
-        probes[0].open()?
+        probes[0].open(&lister)?
     };
 
     debug!(protocol = %trc_cfg.plugin.rtt_collector.protocol, speed = trc_cfg.plugin.rtt_collector.speed, "Configuring probe");
@@ -316,7 +320,7 @@ fn attach_retry_loop(
         match Rtt::attach(core, memory_map) {
             Ok(rtt) => return Ok(rtt),
             Err(e) => {
-                if matches!(e, probe_rs_rtt::Error::ControlBlockNotFound) {
+                if matches!(e, probe_rs::rtt::Error::ControlBlockNotFound) {
                     continue;
                 }
 
@@ -349,7 +353,7 @@ enum Error {
     ProbeRs(#[from] probe_rs::Error),
 
     #[error("Encountered an error with the probe RTT instance. {0}")]
-    ProbeRsRtt(#[from] probe_rs_rtt::Error),
+    ProbeRsRtt(#[from] probe_rs::rtt::Error),
 
     #[error(transparent)]
     Import(#[from] import::Error),

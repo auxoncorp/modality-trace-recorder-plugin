@@ -246,7 +246,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 if let Some(name) = ev.name {
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::QueueName).await?,
-                        AttrVal::String(name.into()),
+                        AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
@@ -280,7 +280,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 if let Some(name) = ev.name {
                     attrs.insert(
                         importer.event_key(CommonEventAttrKey::QueueName).await?,
-                        AttrVal::String(name.into()),
+                        AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
@@ -318,7 +318,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                         importer
                             .event_key(CommonEventAttrKey::SemaphoreName)
                             .await?,
-                        AttrVal::String(name.into()),
+                        AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
@@ -355,7 +355,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                         importer
                             .event_key(CommonEventAttrKey::SemaphoreName)
                             .await?,
-                        AttrVal::String(name.into()),
+                        AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(

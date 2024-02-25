@@ -431,6 +431,6 @@ pub(crate) fn arg_to_attr_val(arg: &Argument) -> AttrVal {
         Argument::U32(v) => AttrVal::Integer(i64::from(*v)),
         Argument::F32(v) => AttrVal::from(f64::from(v.0)),
         Argument::F64(v) => AttrVal::from(v.0),
-        Argument::String(v) => AttrVal::String(v.clone()),
+        Argument::String(v) => AttrVal::String(v.clone().into()),
     }
 }
