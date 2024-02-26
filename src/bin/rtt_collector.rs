@@ -13,10 +13,11 @@ use probe_rs::{
 use std::{
     fs, io,
     path::PathBuf,
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Collect trace recorder streaming protocol data from an on-device RTT buffer
 #[derive(Parser, Debug, Clone)]
@@ -151,9 +152,10 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 -1073741510
             };
             std::process::exit(exit_code);
-        } else {
-            intr.set();
         }
+
+        debug!("Shutdown signal received");
+        intr.set();
     })?;
 
     let mut trc_cfg = TraceRecorderConfig::load_merge_with_opts(
@@ -217,8 +219,8 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         debug!(probe_selector = %probe_selector.0, "Opening selected probe");
         lister.open(probe_selector.0.clone())?
     } else {
-        debug!("Opening first available probe");
         let probes = lister.list_all();
+        debug!(probes = probes.len(), "Opening first available probe");
         if probes.is_empty() {
             return Err(Error::NoProbesAvailable.into());
         }
@@ -263,7 +265,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if !trc_cfg.plugin.rtt_collector.disable_control_plane {
         let down_channel = rtt
             .down_channels()
-            .take(trc_cfg.plugin.rtt_collector.down_channel)
+            .get(trc_cfg.plugin.rtt_collector.down_channel)
             .ok_or_else(|| Error::DownChannelInvalid(trc_cfg.plugin.rtt_collector.down_channel))?;
         debug!(
             channel = down_channel.number(),
@@ -287,23 +289,60 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     // Only hold onto the Core when we need to lock the debug probe driver (before each read/write)
     std::mem::drop(core);
 
+    let session = Arc::new(Mutex::new(session));
+    let session_clone = session.clone();
+    let trc_cfg_clone = trc_cfg.clone();
     let mut join_handle: tokio::task::JoinHandle<Result<(), Error>> = tokio::spawn(async move {
-        let mut stream = TrcRttReader::new(session, up_channel, trc_cfg.plugin.rtt_collector.core);
-        import_streaming(&mut stream, trc_cfg).await?;
+        let mut stream = TrcRttReader::new(
+            session_clone,
+            up_channel,
+            trc_cfg_clone.plugin.rtt_collector.core,
+        );
+        import_streaming(&mut stream, trc_cfg_clone).await?;
         Ok(())
     });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             debug!("User signaled shutdown");
+            // Wait for any on-going transfer to complete
+            let _session = session.lock().unwrap();
+            join_handle.abort();
         }
         res = &mut join_handle => {
             match res? {
                 Ok(_) => {},
-                Err(e) => return Err(e.into()),
+                Err(e) => {
+                    error!(error = %e, "Encountered and error during streaming");
+                    return Err(e.into())
+                }
             }
         }
     };
+
+    let mut session = match session.lock() {
+        Ok(s) => s,
+        // Reader thread is either shutdown or aborted
+        Err(s) => s.into_inner(),
+    };
+
+    if !trc_cfg.plugin.rtt_collector.disable_control_plane {
+        let mut core = session.core(trc_cfg.plugin.rtt_collector.core)?;
+
+        let down_channel = rtt
+            .down_channels()
+            .get(trc_cfg.plugin.rtt_collector.down_channel)
+            .ok_or_else(|| Error::DownChannelInvalid(trc_cfg.plugin.rtt_collector.down_channel))?;
+        debug!(
+            channel = down_channel.number(),
+            buffer_size = down_channel.buffer_size(),
+            "Opened down channel"
+        );
+
+        debug!("Sending stop command");
+        let cmd = Command::Stop.to_le_bytes();
+        down_channel.write(&mut core, &cmd)?;
+    }
 
     Ok(())
 }
@@ -360,13 +399,13 @@ enum Error {
 }
 
 struct TrcRttReader {
-    session: Session,
+    session: Arc<Mutex<Session>>,
     ch: UpChannel,
     core_index: usize,
 }
 
 impl TrcRttReader {
-    pub fn new(session: Session, ch: UpChannel, core_index: usize) -> Self {
+    pub fn new(session: Arc<Mutex<Session>>, ch: UpChannel, core_index: usize) -> Self {
         Self {
             session,
             ch,
@@ -377,8 +416,8 @@ impl TrcRttReader {
 
 impl io::Read for TrcRttReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        let mut core = self
-            .session
+        let mut session = self.session.lock().unwrap();
+        let mut core = session
             .core(self.core_index)
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
 
