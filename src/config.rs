@@ -78,7 +78,7 @@ pub struct ItmCollectorConfig {
     pub stimulus_port: u8,
     pub probe_selector: Option<ProbeSelector>,
     pub chip: Option<String>,
-    pub protocol: probe_rs::WireProtocol,
+    pub protocol: probe_rs::probe::WireProtocol,
     pub speed: u32,
     pub core: usize,
     pub clk: Option<u32>,
@@ -89,7 +89,7 @@ pub struct ItmCollectorConfig {
 
 impl ItmCollectorConfig {
     pub const DEFAULT_STIMULUS_PORT: u8 = 1;
-    pub const DEFAULT_PROTOCOL: probe_rs::WireProtocol = probe_rs::WireProtocol::Swd;
+    pub const DEFAULT_PROTOCOL: probe_rs::probe::WireProtocol = probe_rs::probe::WireProtocol::Swd;
     pub const DEFAULT_SPEED: u32 = 4000;
     pub const DEFAULT_CORE: usize = 0;
 }
@@ -126,7 +126,7 @@ pub struct RttCollectorConfig {
     pub down_channel: usize,
     pub probe_selector: Option<ProbeSelector>,
     pub chip: Option<String>,
-    pub protocol: probe_rs::WireProtocol,
+    pub protocol: probe_rs::probe::WireProtocol,
     pub speed: u32,
     pub core: usize,
     pub reset: bool,
@@ -136,7 +136,7 @@ pub struct RttCollectorConfig {
 impl RttCollectorConfig {
     pub const DEFAULT_UP_CHANNEL: usize = 1;
     pub const DEFAULT_DOWN_CHANNEL: usize = 1;
-    pub const DEFAULT_PROTOCOL: probe_rs::WireProtocol = probe_rs::WireProtocol::Swd;
+    pub const DEFAULT_PROTOCOL: probe_rs::probe::WireProtocol = probe_rs::probe::WireProtocol::Swd;
     pub const DEFAULT_SPEED: u32 = 4000;
     pub const DEFAULT_CORE: usize = 0;
 }
@@ -161,7 +161,7 @@ impl Default for RttCollectorConfig {
 }
 
 #[derive(Clone, Debug, From, Into, Deref, serde_with::DeserializeFromStr)]
-pub struct ProbeSelector(pub probe_rs::DebugProbeSelector);
+pub struct ProbeSelector(pub probe_rs::probe::DebugProbeSelector);
 
 impl PartialEq for ProbeSelector {
     fn eq(&self, other: &Self) -> bool {
@@ -177,7 +177,7 @@ impl FromStr for ProbeSelector {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(
-            probe_rs::DebugProbeSelector::from_str(s).map_err(|e| e.to_string())?,
+            probe_rs::probe::DebugProbeSelector::from_str(s).map_err(|e| e.to_string())?,
         ))
     }
 }
@@ -967,7 +967,7 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                         stimulus_port: 3,
                         probe_selector: ProbeSelector::from_str("234:234").unwrap().into(),
                         chip: "stm32".to_owned().into(),
-                        protocol: probe_rs::WireProtocol::Jtag,
+                        protocol: probe_rs::probe::WireProtocol::Jtag,
                         speed: 1234,
                         core: 1,
                         clk: 222.into(),
@@ -1086,7 +1086,7 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                         down_channel: 1,
                         probe_selector: ProbeSelector::from_str("234:234").unwrap().into(),
                         chip: "stm32".to_owned().into(),
-                        protocol: probe_rs::WireProtocol::Jtag,
+                        protocol: probe_rs::probe::WireProtocol::Jtag,
                         speed: 1234,
                         core: 1,
                         reset: true,

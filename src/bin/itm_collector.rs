@@ -8,7 +8,8 @@ use modality_trace_recorder_plugin::{
 };
 use probe_rs::{
     architecture::arm::{component::TraceSink, SwoConfig},
-    DebugProbeSelector, MemoryInterface, Permissions, Probe, WireProtocol,
+    probe::{list::Lister, DebugProbeSelector, WireProtocol},
+    MemoryInterface, Permissions,
 };
 use std::{fs, io, path::PathBuf, time::Duration};
 use thiserror::Error;
@@ -256,7 +257,8 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(chip_desc) = &trc_cfg.plugin.itm_collector.chip_description_path {
         debug!(path = %chip_desc.display(), "Adding custom chip description");
-        probe_rs::config::add_target_from_yaml(chip_desc)?;
+        let f = fs::File::open(chip_desc)?;
+        probe_rs::config::add_target_from_yaml(f)?;
     }
 
     if trc_cfg.plugin.itm_collector.stimulus_port > 31 {
@@ -286,16 +288,17 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         .set_baud(baud)
         .set_continuous_formatting(false);
 
+    let lister = Lister::new();
     let mut probe = if let Some(probe_selector) = &trc_cfg.plugin.itm_collector.probe_selector {
         debug!(probe_selector = %probe_selector.0, "Opening selected probe");
-        Probe::open(probe_selector.0.clone())?
+        lister.open(probe_selector.0.clone())?
     } else {
         debug!("Opening first available probe");
-        let probes = Probe::list_all();
+        let probes = lister.list_all();
         if probes.is_empty() {
             return Err(Error::NoProbesAvailable.into());
         }
-        probes[0].open()?
+        probes[0].open(&lister)?
     };
 
     debug!(protocol = %trc_cfg.plugin.itm_collector.protocol, speed = trc_cfg.plugin.itm_collector.speed, "Configuring probe");

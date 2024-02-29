@@ -1,6 +1,6 @@
 [package]
 name = "modality-trace-recorder-plugin"
-version = "0.8.0"
+version = "0.9.0"
 edition = "2021"
 authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite and ingest adapter library for Percepio's TraceRecorder data"
@@ -36,30 +36,29 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "io-ut
 thiserror = "1"
 derive_more = "0.99"
 hex = "0.4"
-dirs = "4"
+dirs = "5"
 url = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 humantime = "2"
 byteordered = "0.6"
 async-trait = "0.1"
 serde = { version = "1.0", features=["derive"] }
-serde_with = "2.0"
+serde_with = "3.6"
 itm = "0.9.0-rc.1"
-probe-rs = "0.14"
-probe-rs-rtt = "0.14"
-goblin = "0.5"
-clap = { version = "4.4", features = ["derive", "env", "color"] }
-ctrlc = { version = "3.2", features=["termination"] }
+probe-rs = "0.23"
+goblin = "0.8"
+clap = { version = "4.5", features = ["derive", "env", "color"] }
+ctrlc = { version = "3.4", features=["termination"] }
 exitcode = "1"
-modality-api = "0.1"
-modality-ingest-client = "0.2"
-modality-ingest-protocol = "0.1"
-modality-reflector-config = "0.2"
-trace-recorder-parser = "0.4"
+modality-api = "0.2"
+modality-ingest-client = "0.3"
+modality-ingest-protocol = "0.2"
+modality-reflector-config = "0.3"
+trace-recorder-parser = "0.5"
 
 [dev-dependencies]
-tempfile = "3.3"
-pretty_assertions = "1.2"
+tempfile = "3.10"
+pretty_assertions = "1.4"
 
 [profile.release]
 strip="debuginfo"
