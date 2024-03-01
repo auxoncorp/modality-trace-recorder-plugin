@@ -62,3 +62,6 @@ pretty_assertions = "1.4"
 
 [profile.release]
 strip="debuginfo"
+
+[patch.crates-io]
+nusb = { git = "https://github.com/jonlamb-gh/nusb.git", branch = "update-ioctl-code" }
