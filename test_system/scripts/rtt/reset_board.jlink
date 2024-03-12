@@ -1,0 +1,7 @@
+SelectEmuBySN 932000284
+device STM32F407VE
+si SWD
+speed 4000
+connect
+reset
+exit
