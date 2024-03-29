@@ -7,8 +7,8 @@ use modality_trace_recorder_plugin::{
 use probe_rs::{
     config::MemoryRegion,
     probe::{list::Lister, DebugProbeSelector, WireProtocol},
-    rtt::{Rtt, UpChannel},
-    Core, Permissions, Session,
+    rtt::{Rtt, ScanRegion, UpChannel},
+    Core, Permissions, Session, VectorCatchCondition,
 };
 use std::{
     fs, io,
@@ -40,6 +40,14 @@ struct Opts {
         help_heading = "STREAMING PORT CONFIGURATION"
     )]
     pub attach_timeout: Option<humantime::Duration>,
+
+    /// Use the provided RTT control block address instead of scanning the target memory for it.
+    #[clap(
+        long,
+        name = "control-block-address",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub control_block_address: Option<u32>,
 
     /// Disable sending control plane commands to the target.
     /// By default, CMD_SET_ACTIVE is sent on startup and shutdown to
@@ -167,6 +175,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(to) = opts.attach_timeout {
         trc_cfg.plugin.rtt_collector.attach_timeout = Some(to.into());
     }
+    if let Some(addr) = opts.control_block_address {
+        trc_cfg.plugin.rtt_collector.control_block_address = addr.into();
+    }
     if opts.disable_control_plane {
         trc_cfg.plugin.rtt_collector.disable_control_plane = true;
     }
@@ -231,12 +242,6 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     probe.select_protocol(trc_cfg.plugin.rtt_collector.protocol)?;
     probe.set_speed(trc_cfg.plugin.rtt_collector.speed)?;
 
-    if trc_cfg.plugin.rtt_collector.reset {
-        debug!("Reseting target");
-        probe.target_reset_assert()?;
-        probe.target_reset_deassert()?;
-    }
-
     debug!(
         chip = chip,
         core = trc_cfg.plugin.rtt_collector.core,
@@ -244,16 +249,46 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     );
     let mut session = probe.attach(chip, Permissions::default())?;
 
+    let rtt_scan_regions = session.target().rtt_scan_regions.clone();
+    let mut rtt_scan_region = if rtt_scan_regions.is_empty() {
+        ScanRegion::Ram
+    } else {
+        ScanRegion::Ranges(rtt_scan_regions)
+    };
+    if let Some(user_provided_addr) = trc_cfg.plugin.rtt_collector.control_block_address {
+        debug!(
+            rtt_addr = user_provided_addr,
+            "Using explicit RTT control block address"
+        );
+        rtt_scan_region = ScanRegion::Exact(user_provided_addr);
+    }
+
     let memory_map = session.target().memory_map.clone();
     let mut core = session.core(trc_cfg.plugin.rtt_collector.core)?;
 
+    if trc_cfg.plugin.rtt_collector.reset {
+        debug!("Reset and halt core");
+        core.reset_and_halt(Duration::from_millis(100))?;
+    }
+
+    // Disable any previous vector catching (i.e. user just ran probe-rs run or a debugger)
+    core.disable_vector_catch(VectorCatchCondition::All)?;
+    core.clear_all_hw_breakpoints()?;
+
     let mut rtt = match trc_cfg.plugin.rtt_collector.attach_timeout {
-        Some(to) if !to.0.is_zero() => attach_retry_loop(&mut core, &memory_map, to.0)?,
+        Some(to) if !to.0.is_zero() => {
+            attach_retry_loop(&mut core, &memory_map, &rtt_scan_region, to.0)?
+        }
         _ => {
             debug!("Attaching to RTT");
             Rtt::attach(&mut core, &memory_map)?
         }
     };
+
+    if trc_cfg.plugin.rtt_collector.reset {
+        debug!("Run core");
+        core.run()?;
+    }
 
     let up_channel = rtt
         .up_channels()
@@ -350,13 +385,14 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
 fn attach_retry_loop(
     core: &mut Core,
     memory_map: &[MemoryRegion],
+    scan_region: &ScanRegion,
     timeout: humantime::Duration,
 ) -> Result<Rtt, Error> {
     debug!(timeout = %timeout, "Attaching to RTT");
     let timeout: Duration = timeout.into();
     let start = Instant::now();
     while Instant::now().duration_since(start) <= timeout {
-        match Rtt::attach(core, memory_map) {
+        match Rtt::attach_region(core, memory_map, scan_region) {
             Ok(rtt) => return Ok(rtt),
             Err(e) => {
                 if matches!(e, probe_rs::rtt::Error::ControlBlockNotFound) {
@@ -428,6 +464,19 @@ impl io::Read for TrcRttReader {
                 .read(&mut core, &mut buf[bytes_fulfilled..])
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
             bytes_fulfilled += rtt_bytes_read;
+
+            // NOTE: this is what probe-rs does
+            //
+            // Poll RTT with a frequency of 10 Hz if we do not receive any new data.
+            // Once we receive new data, we bump the frequency to 1kHz.
+            //
+            // If the polling frequency is too high, the USB connection to the probe
+            // can become unstable. Hence we only pull as little as necessary.
+            if rtt_bytes_read != 0 {
+                std::thread::sleep(Duration::from_millis(1));
+            } else {
+                std::thread::sleep(Duration::from_millis(100));
+            }
         }
 
         Ok(bytes_fulfilled)

@@ -120,6 +120,7 @@ impl Default for ItmCollectorConfig {
 #[serde(rename_all = "kebab-case", default)]
 pub struct RttCollectorConfig {
     pub attach_timeout: Option<HumanTime>,
+    pub control_block_address: Option<u32>,
     pub disable_control_plane: bool,
     pub restart: bool,
     pub up_channel: usize,
@@ -145,6 +146,7 @@ impl Default for RttCollectorConfig {
     fn default() -> Self {
         Self {
             attach_timeout: None,
+            control_block_address: None,
             disable_control_plane: false,
             restart: false,
             up_channel: Self::DEFAULT_UP_CHANNEL,
