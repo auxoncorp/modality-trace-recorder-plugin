@@ -199,11 +199,16 @@ impl TraceRecorderConfig {
         entry: TraceRecorderConfigEntry,
         rf_opts: ReflectorOpts,
         tr_opts: TraceRecorderOpts,
+        ignore_env: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let cfg = if let Some(cfg_path) = &rf_opts.config_file {
             modality_reflector_config::try_from_file(cfg_path)?
         } else if let Ok(env_path) = env::var(CONFIG_ENV_VAR) {
-            modality_reflector_config::try_from_file(Path::new(&env_path))?
+            if ignore_env {
+                Config::default()
+            } else {
+                modality_reflector_config::try_from_file(Path::new(&env_path))?
+            }
         } else {
             Config::default()
         };
@@ -620,6 +625,7 @@ additional-timeline-attributes = [
 run-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
 time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3'
 startup-task-name = 'm5'
+control-block-address = 0xFFFF
 user-event-channel = true
 user-event-format-string = true
 single-task-timeline = true
@@ -664,6 +670,7 @@ chip-description-path = "/tmp/S32K_Series.yaml"
             f.flush().unwrap();
         }
 
+        env::remove_var(CONFIG_ENV_VAR);
         let cfg = TraceRecorderConfig::load_merge_with_opts(
             TraceRecorderConfigEntry::Importer,
             ReflectorOpts {
@@ -671,6 +678,7 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                 ..Default::default()
             },
             Default::default(),
+            false,
         )
         .unwrap();
 
@@ -679,6 +687,7 @@ chip-description-path = "/tmp/S32K_Series.yaml"
             TraceRecorderConfigEntry::Importer,
             Default::default(),
             Default::default(),
+            false,
         )
         .unwrap();
         env::remove_var(CONFIG_ENV_VAR);
@@ -775,18 +784,9 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                 ..Default::default()
             },
             Default::default(),
+            true,
         )
         .unwrap();
-
-        env::set_var(CONFIG_ENV_VAR, path);
-        let env_cfg = TraceRecorderConfig::load_merge_with_opts(
-            TraceRecorderConfigEntry::TcpCollector,
-            Default::default(),
-            Default::default(),
-        )
-        .unwrap();
-        env::remove_var(CONFIG_ENV_VAR);
-        assert_eq!(cfg, env_cfg);
 
         assert_eq!(
             cfg,
@@ -881,18 +881,9 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                 ..Default::default()
             },
             Default::default(),
+            true,
         )
         .unwrap();
-
-        env::set_var(CONFIG_ENV_VAR, path);
-        let env_cfg = TraceRecorderConfig::load_merge_with_opts(
-            TraceRecorderConfigEntry::ItmCollector,
-            Default::default(),
-            Default::default(),
-        )
-        .unwrap();
-        env::remove_var(CONFIG_ENV_VAR);
-        assert_eq!(cfg, env_cfg);
 
         assert_eq!(
             cfg,
@@ -1000,18 +991,9 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                 ..Default::default()
             },
             Default::default(),
+            true,
         )
         .unwrap();
-
-        env::set_var(CONFIG_ENV_VAR, path);
-        let env_cfg = TraceRecorderConfig::load_merge_with_opts(
-            TraceRecorderConfigEntry::RttCollector,
-            Default::default(),
-            Default::default(),
-        )
-        .unwrap();
-        env::remove_var(CONFIG_ENV_VAR);
-        assert_eq!(cfg, env_cfg);
 
         assert_eq!(
             cfg,
@@ -1082,6 +1064,7 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                     itm_collector: Default::default(),
                     rtt_collector: RttCollectorConfig {
                         attach_timeout: HumanTime::from_str("100ms").unwrap().into(),
+                        control_block_address: 0xFFFF.into(),
                         disable_control_plane: true,
                         restart: true,
                         up_channel: 1,

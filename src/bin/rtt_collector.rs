@@ -170,6 +170,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         TraceRecorderConfigEntry::RttCollector,
         opts.rf_opts,
         opts.tr_opts,
+        false,
     )?;
 
     if let Some(to) = opts.attach_timeout {

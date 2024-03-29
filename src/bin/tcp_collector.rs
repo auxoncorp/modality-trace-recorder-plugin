@@ -96,6 +96,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         TraceRecorderConfigEntry::TcpCollector,
         opts.rf_opts,
         opts.tr_opts,
+        false,
     )?;
     if opts.disable_control_plane {
         cfg.plugin.tcp_collector.disable_control_plane = true;

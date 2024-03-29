@@ -86,6 +86,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         TraceRecorderConfigEntry::Importer,
         opts.rf_opts,
         opts.tr_opts,
+        false,
     )?;
 
     let protocol = if opts.snapshot {
