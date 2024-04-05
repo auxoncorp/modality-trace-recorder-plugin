@@ -1,4 +1,4 @@
-use modality_api::TimelineId;
+use auxon_sdk::api::TimelineId;
 use std::hash::Hash;
 use trace_recorder_parser::{snapshot, streaming, time::Timestamp, types::ObjectHandle};
 

@@ -5,10 +5,12 @@ use crate::{
     TraceRecorderConfig, TraceRecorderExt,
 };
 use async_trait::async_trait;
+use auxon_sdk::{
+    api::{AttrVal, BigInt},
+    ingest_protocol::InternedAttrKey,
+    reflector_config::AttrKeyEqValuePair,
+};
 use derive_more::Display;
-use modality_api::{AttrVal, BigInt};
-use modality_ingest_protocol::InternedAttrKey;
-use modality_reflector_config::AttrKeyEqValuePair;
 use std::collections::HashMap;
 use trace_recorder_parser::streaming::RecorderData;
 use trace_recorder_parser::types::{ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT};

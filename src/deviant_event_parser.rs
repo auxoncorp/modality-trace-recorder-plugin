@@ -1,6 +1,6 @@
 use crate::trace_recorder::Error;
+use auxon_sdk::api::AttrVal;
 use byteordered::ByteOrdered;
-use modality_api::AttrVal;
 use std::io::Read;
 use trace_recorder_parser::{
     streaming::event::{BaseEvent, EventId},

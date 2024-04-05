@@ -1,6 +1,8 @@
 use crate::attr::{AttrKeyIndex, AttrKeys};
-use modality_ingest_client::{BoundTimelineState, IngestClient, IngestError};
-use modality_ingest_protocol::InternedAttrKey;
+use auxon_sdk::{
+    ingest_client::{BoundTimelineState, IngestClient, IngestError},
+    ingest_protocol::InternedAttrKey,
+};
 
 pub struct Client<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
     timeline_keys: AttrKeys<TAK>,

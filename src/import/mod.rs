@@ -2,11 +2,11 @@ use crate::{
     AttrKeyIndex, Client, ContextHandle, ContextSwitchOutcome, TraceRecorderConfig,
     TraceRecorderExt,
 };
-use modality_api::{AttrVal, TimelineId};
-use modality_ingest_client::{
-    IngestClient, IngestClientInitializationError, IngestError, ReadyState,
+use auxon_sdk::{
+    api::{AttrVal, TimelineId},
+    ingest_client::{IngestClient, IngestClientInitializationError, IngestError, ReadyState},
+    ingest_protocol::InternedAttrKey,
 };
-use modality_ingest_protocol::InternedAttrKey;
 use std::{
     collections::{HashMap, HashSet},
     io::{self, Read, Seek, SeekFrom},

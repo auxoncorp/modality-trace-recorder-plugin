@@ -1,7 +1,9 @@
 use crate::import::{arg_to_attr_val, Error, SnapshotImporter};
 use crate::{CommonEventAttrKey, ContextSwitchOutcome, NanosecondsExt, TraceRecorderConfig};
-use modality_api::{AttrVal, BigInt};
-use modality_ingest_client::IngestClient;
+use auxon_sdk::{
+    api::{AttrVal, BigInt},
+    ingest_client::IngestClient,
+};
 use std::{
     collections::HashMap,
     io::{Read, Seek},

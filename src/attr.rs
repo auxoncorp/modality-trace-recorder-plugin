@@ -1,6 +1,8 @@
+use auxon_sdk::{
+    ingest_client::{BoundTimelineState, IngestClient, IngestError},
+    ingest_protocol::InternedAttrKey,
+};
 use derive_more::Display;
-use modality_ingest_client::{BoundTimelineState, IngestClient, IngestError};
-use modality_ingest_protocol::InternedAttrKey;
 use std::{collections::HashMap, fmt, hash::Hash};
 
 pub trait AttrKeyIndex: Hash + Eq + Clone + fmt::Display {}

@@ -5,9 +5,9 @@ use crate::{
     TraceRecorderConfig, TraceRecorderExt,
 };
 use async_trait::async_trait;
-use modality_api::AttrVal;
-use modality_ingest_protocol::InternedAttrKey;
-use modality_reflector_config::AttrKeyEqValuePair;
+use auxon_sdk::{
+    api::AttrVal, ingest_protocol::InternedAttrKey, reflector_config::AttrKeyEqValuePair,
+};
 use std::collections::HashMap;
 use trace_recorder_parser::snapshot::{
     object_properties::{IsrObjectClass, ObjectProperties, TaskObjectClass},

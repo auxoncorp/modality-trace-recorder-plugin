@@ -3,8 +3,8 @@ use crate::import::ImportProtocol;
 use crate::opts::{
     FormatArgAttributeKeysSet, IgnoredObjectClasses, ReflectorOpts, RenameMap, TraceRecorderOpts,
 };
+use auxon_sdk::reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR};
 use derive_more::{Deref, From, Into};
-use modality_reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR};
 use serde::Deserialize;
 use std::env;
 use std::net::SocketAddr;
@@ -202,12 +202,12 @@ impl TraceRecorderConfig {
         ignore_env: bool,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let cfg = if let Some(cfg_path) = &rf_opts.config_file {
-            modality_reflector_config::try_from_file(cfg_path)?
+            auxon_sdk::reflector_config::try_from_file(cfg_path)?
         } else if let Ok(env_path) = env::var(CONFIG_ENV_VAR) {
             if ignore_env {
                 Config::default()
             } else {
-                modality_reflector_config::try_from_file(Path::new(&env_path))?
+                auxon_sdk::reflector_config::try_from_file(Path::new(&env_path))?
             }
         } else {
             Config::default()
@@ -485,7 +485,7 @@ impl PluginConfig {
 mod test {
     use super::*;
     use crate::opts::{FormatArgAttributeKeysItem, RenameMapItem};
-    use modality_reflector_config::{AttrKeyEqValuePair, TimelineAttributes};
+    use auxon_sdk::reflector_config::{AttrKeyEqValuePair, TimelineAttributes};
     use pretty_assertions::assert_eq;
     use std::{env, fs::File, io::Write};
     use trace_recorder_parser::types::ObjectClass;
