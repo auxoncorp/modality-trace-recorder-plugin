@@ -96,13 +96,18 @@ pub enum EventAttrKey {
 
     #[display(fmt = "event.internal.trace_recorder.id")]
     EventId,
+
     #[display(fmt = "event.internal.trace_recorder.event_count")]
     EventCount,
+
     #[display(fmt = "event.internal.trace_recorder.parameter_count")]
     ParameterCount,
 
     #[display(fmt = "event.internal.trace_recorder.timer.ticks")]
     TimerTicks,
+
+    #[display(fmt = "event.trace_recorder.dropped_preceding_events")]
+    DroppedEvents,
 }
 
 impl From<CommonEventAttrKey> for EventAttrKey {

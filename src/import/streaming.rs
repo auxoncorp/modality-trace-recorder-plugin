@@ -49,6 +49,8 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
     let mut time_rollover_tracker = StreamingInstant::zero();
     let mut importer = StreamingImporter::begin(client, cfg.clone(), &trd).await?;
 
+    let mut last_event_count: Option<u16> = None;
+
     while let Some((event_code, event)) = trd.read_event(&mut r)? {
         let mut attrs = HashMap::new();
 
@@ -57,6 +59,30 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
         let parameter_count = event_code.parameter_count();
 
         let event_count = event.event_count();
+        // TraceStart is supposed to have strange behavior w.r.t. event count, in some versions.
+        if event_type != EventType::TraceStart {
+            if let Some(last) = last_event_count {
+                let last = last as u32;
+                let event_count: u16 = event_count.into();
+                let mut event_count_for_diff = event_count as u32;
+
+                // rollover handling
+                while event_count_for_diff <= last {
+                    event_count_for_diff += u16::MAX as u32 + 1;
+                }
+
+                let diff = event_count as u32 - last;
+                if diff > 1 {
+                    attrs.insert(
+                        importer.event_key(EventAttrKey::DroppedEvents).await?,
+                        diff.into(),
+                    );
+                }
+            }
+
+            last_event_count = Some(event_count.into());
+        }
+
         let timer_ticks = event.timestamp();
         let timestamp = time_rollover_tracker.elapsed(timer_ticks);
 
