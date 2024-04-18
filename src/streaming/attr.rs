@@ -98,6 +98,10 @@ pub enum EventAttrKey {
     EventId,
     #[display(fmt = "event.internal.trace_recorder.event_count")]
     EventCount,
+    #[display(fmt = "event.internal.trace_recorder.event_count.raw")]
+    EventCountRaw,
+    #[display(fmt = "event.trace_recorder.dropped_preceding_events")]
+    DroppedEvents,
     #[display(fmt = "event.internal.trace_recorder.parameter_count")]
     ParameterCount,
 

@@ -7,6 +7,7 @@ use auxon_sdk::{
 };
 use std::{collections::HashMap, io::Read};
 use trace_recorder_parser::{
+    streaming::event::TrackingEventCounter,
     time::StreamingInstant,
     types::{KernelPortIdentity, ObjectClass},
 };
@@ -47,6 +48,8 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
 
     let mut ordering = 0;
     let mut time_rollover_tracker = StreamingInstant::zero();
+    let mut event_counter_tracker = TrackingEventCounter::zero();
+    let mut first_event_observed = false;
     let mut importer = StreamingImporter::begin(client, cfg.clone(), &trd).await?;
 
     while let Some((event_code, event)) = trd.read_event(&mut r)? {
@@ -56,7 +59,19 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
         let event_id = event_code.event_id();
         let parameter_count = event_code.parameter_count();
 
-        let event_count = event.event_count();
+        let dropped_events = if !first_event_observed {
+            if event_type != EventType::TraceStart {
+                warn!(event_type = %event_type, "First event should be TRACE_START");
+            }
+            event_counter_tracker.set_initial_count(event.event_count());
+            first_event_observed = true;
+            None
+        } else {
+            event_counter_tracker.update(event.event_count())
+        };
+
+        let event_count_raw = u16::from(event.event_count());
+        let event_count = event_counter_tracker.count();
         let timer_ticks = event.timestamp();
         let timestamp = time_rollover_tracker.elapsed(timer_ticks);
 
@@ -77,13 +92,28 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
             AttrVal::Integer(u16::from(event_id).into()),
         );
         attrs.insert(
-            importer.event_key(EventAttrKey::EventCount).await?,
-            AttrVal::Integer(u16::from(event_count).into()),
-        );
-        attrs.insert(
             importer.event_key(EventAttrKey::ParameterCount).await?,
             AttrVal::Integer(u8::from(parameter_count).into()),
         );
+        attrs.insert(
+            importer.event_key(EventAttrKey::EventCountRaw).await?,
+            event_count_raw.into(),
+        );
+        attrs.insert(
+            importer.event_key(EventAttrKey::EventCount).await?,
+            event_count.into(),
+        );
+        if let Some(dropped_events) = dropped_events {
+            warn!(
+                event_count = event_count_raw,
+                dropped_events, "Dropped events detected"
+            );
+
+            attrs.insert(
+                importer.event_key(EventAttrKey::DroppedEvents).await?,
+                dropped_events.into(),
+            );
+        }
 
         match event {
             Event::TraceStart(ev) => {
