@@ -83,6 +83,9 @@ pub enum CommonTimelineAttrKey {
     #[display(fmt = "timeline.internal.trace_recorder.object_handle")]
     ObjectHandle,
 
+    #[display(fmt = "timeline.internal.trace_recorder.plugin.version")]
+    PluginVersion,
+
     #[display(fmt = "timeline.{_0}")]
     Custom(String),
 }

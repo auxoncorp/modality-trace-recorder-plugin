@@ -2,7 +2,7 @@ use crate::streaming::{EventAttrKey, TimelineAttrKey};
 use crate::trace_recorder::Error;
 use crate::{
     Client, CommonTimelineAttrKey, ContextHandle, NanosecondsExt, TimelineDetails,
-    TraceRecorderConfig, TraceRecorderExt,
+    TraceRecorderConfig, TraceRecorderExt, PLUGIN_VERSION,
 };
 use async_trait::async_trait;
 use auxon_sdk::{
@@ -131,6 +131,9 @@ impl TraceRecorderExt<TimelineAttrKey, EventAttrKey> for RecorderData {
                 }
                 TimelineAttrKey::Common(CommonTimelineAttrKey::IsrChainingThreshold) => {
                     AttrVal::Integer(self.header.isr_tail_chaining_threshold.into())
+                }
+                TimelineAttrKey::Common(CommonTimelineAttrKey::PluginVersion) => {
+                    PLUGIN_VERSION.into()
                 }
                 TimelineAttrKey::Common(CommonTimelineAttrKey::Custom(_)) => continue,
 
