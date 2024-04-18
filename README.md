@@ -26,6 +26,33 @@ default behavior.
 
 See the [Modality documentation](https://docs.auxon.io/modality/) for more information on the Modality concepts.
 
+### Event Counter and Timestamps
+
+Raw event count and timestamp timer ticks are provided alongside the rollover-tracked values.
+If the trace-recorder-provided timestamp information message contains the frequency, we additionally
+convert timestamp ticks to nanoseconds.
+
+* Raw timestamp timer ticks are available on the `event.internal.trace_recorder.timer.ticks` attribute
+* Rollover tracking timestamp ticks are available on the `event.internal.trace_recorder.timestamp.ticks` attribute
+* Raw event count is available on the `event.internal.trace_recorder.event_count.raw` attribute
+* Rollover tracking event count is available on the `event.internal.trace_recorder.event_count` attribute
+* When we detect dropped events, the event attribute `event.trace_recorder.dropped_preceding_events` is added to the current event
+  and a warning message is logged.
+
+Note that we don't support the entirety of the trace-recorder event model.
+When we encounter an event type that is not supported, we log a debug message and ignore it but it's not considered dropped (e.g. we still use it to update the event counter tracking).
+
+To see the debug messages set the `RUST_LOG` environment variable before running the reflector:
+```bash
+RUST_LOG=modality_trace_recorder=debug
+modality-reflector run --config reflector-config.toml --collector trace-recorder-rtt
+```
+
+The output will look like the following (`[timestamp]:<event-id>:<parameter-count>:<event-count>`):
+```text
+2024-04-18T16:02:56.119687Z DEBUG modality_trace_recorder_plugin::import::streaming: Skipping unknown [13738495]:7A:1:385
+```
+
 ## Configuration
 
 All of the plugins can be configured through a TOML configuration file (from either the `--config` option or the `MODALITY_REFLECTOR_CONFIG` environment variable).
