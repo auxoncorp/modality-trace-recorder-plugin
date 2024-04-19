@@ -189,8 +189,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     try_init_tracing_subscriber()?;
 
     let intr = Interruptor::new();
+    let intr_clone = intr.clone();
     ctrlc::set_handler(move || {
-        if intr.is_set() {
+        if intr_clone.is_set() {
             let exit_code = if cfg!(target_family = "unix") {
                 // 128 (fatal error signal "n") + 2 (control-c is fatal error signal 2)
                 130
@@ -203,7 +204,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         debug!("Shutdown signal received");
-        intr.set();
+        intr_clone.set();
     })?;
 
     let mut trc_cfg = TraceRecorderConfig::load_merge_with_opts(
@@ -420,6 +421,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             None
         };
         let stream = TrcRttReader::new(
+            intr,
             session_clone,
             up_channel,
             trc_cfg_clone.plugin.rtt_collector.core,
@@ -437,6 +439,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             debug!("User signaled shutdown");
             // Wait for any on-going transfer to complete
             let _session = session.lock().unwrap();
+            std::thread::sleep(Duration::from_millis(100));
             join_handle.abort();
         }
         res = &mut join_handle => {
@@ -533,6 +536,7 @@ enum Error {
 }
 
 struct TrcRttReader {
+    interruptor: Interruptor,
     session: Arc<Mutex<Session>>,
     ch: UpChannel,
     core_index: usize,
@@ -548,6 +552,7 @@ impl TrcRttReader {
     const DEFAULT_RTT_BUFFER_SIZE: usize = 1024;
 
     pub fn new(
+        interruptor: Interruptor,
         session: Arc<Mutex<Session>>,
         ch: UpChannel,
         core_index: usize,
@@ -563,6 +568,7 @@ impl TrcRttReader {
         ratelimiter.set_refill_interval(Self::NO_DATA_POLL_INTERVAL)?;
         ratelimiter.set_refill_interval(poll_interval)?;
         Ok(Self {
+            interruptor,
             session,
             ch,
             core_index,
@@ -576,6 +582,13 @@ impl TrcRttReader {
 
 impl io::Read for TrcRttReader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        if self.interruptor.is_set() {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "RTT reader shutdown",
+            ));
+        }
+
         let mut session = self.session.lock().unwrap();
         let mut core = session
             .core(self.core_index)
@@ -583,6 +596,13 @@ impl io::Read for TrcRttReader {
 
         let mut bytes_fulfilled = 0;
         while bytes_fulfilled == 0 {
+            if self.interruptor.is_set() {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "RTT reader shutdown",
+                ));
+            }
+
             let rtt_bytes_read = self
                 .ch
                 .read(&mut core, &mut buf[bytes_fulfilled..])
