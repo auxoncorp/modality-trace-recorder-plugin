@@ -3,8 +3,8 @@ use modality_trace_recorder_plugin::{
     import::import, tracing::try_init_tracing_subscriber, ImportProtocol, Interruptor,
     ReflectorOpts, SnapshotFile, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
-use std::fs::File;
 use std::path::PathBuf;
+use std::{fs::File, io::BufReader};
 use tracing::debug;
 
 /// Import trace recorder data from a file
@@ -107,7 +107,10 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let f = SnapshotFile::open(&file_path)?;
-    let mut join_handle = tokio::spawn(async move { import(File::from(f), protocol, cfg).await });
+    let mut join_handle = tokio::spawn(async move {
+        let reader = BufReader::new(File::from(f));
+        import(reader, protocol, cfg).await
+    });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {

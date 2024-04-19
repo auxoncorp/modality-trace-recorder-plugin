@@ -131,7 +131,11 @@ pub struct RttCollectorConfig {
     pub speed: u32,
     pub core: usize,
     pub reset: bool,
+    pub attach_under_reset: bool,
     pub chip_description_path: Option<PathBuf>,
+    pub rtt_read_buffer_size: Option<usize>,
+    pub rtt_poll_interval: Option<HumanTime>,
+    pub metrics: bool,
 }
 
 impl RttCollectorConfig {
@@ -157,7 +161,11 @@ impl Default for RttCollectorConfig {
             speed: Self::DEFAULT_SPEED,
             core: Self::DEFAULT_CORE,
             reset: false,
+            attach_under_reset: false,
             chip_description_path: None,
+            rtt_read_buffer_size: None,
+            rtt_poll_interval: None,
+            metrics: false,
         }
     }
 }
@@ -644,7 +652,11 @@ protocol = 'Jtag'
 speed = 1234
 core = 1
 reset = true
+attach-under-reset = true
 chip-description-path = "/tmp/S32K_Series.yaml"
+rtt-poll-interval = "1ms"
+rtt-read-buffer-size = 1024
+metrics = true
 
     [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
@@ -1075,7 +1087,11 @@ chip-description-path = "/tmp/S32K_Series.yaml"
                         speed: 1234,
                         core: 1,
                         reset: true,
+                        attach_under_reset: true,
                         chip_description_path: PathBuf::from("/tmp/S32K_Series.yaml").into(),
+                        rtt_poll_interval: HumanTime::from_str("1ms").unwrap().into(),
+                        rtt_read_buffer_size: 1024.into(),
+                        metrics: true,
                     },
                 },
             }

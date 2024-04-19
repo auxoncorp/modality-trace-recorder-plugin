@@ -12,6 +12,8 @@ pub use opts::{
 pub use snapshot::SnapshotFile;
 pub use trace_recorder::{NanosecondsExt, TimelineDetails, TraceRecorderExt};
 
+pub const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod attr;
 pub mod auth;
 pub mod client;
