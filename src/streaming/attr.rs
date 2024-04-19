@@ -68,6 +68,7 @@ impl TimelineAttrKey {
             Common(IrqPriorityOrder),
             Common(Frequency),
             Common(IsrChainingThreshold),
+            Common(PluginVersion),
             FormatVersion,
             NumCores,
             PlatformCfg,
