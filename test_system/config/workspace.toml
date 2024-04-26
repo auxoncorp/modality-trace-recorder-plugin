@@ -1,0 +1,5 @@
+[[segmentation-rule]]
+name = "by-stream-port-run-id"
+attributes = ["trc_stream_port", "ci_run_id"]
+segment-name-template = "{timeline.trc_stream_port}:{timeline.ci_run_id}"
+causally-partition-segments = true

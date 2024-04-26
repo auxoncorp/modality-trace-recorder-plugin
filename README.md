@@ -2,6 +2,8 @@
 
 A [Modality][modality] reflector plugin suite and ingest adapter library for Percepio's [TraceRecorder][trace-recorder] data.
 
+![](assets/ui.png)
+
 | Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | Streaming Ports |
 | :---:       | :---:             | :---:              | :---:       | :---:           |
 | FreeRTOS    | v6                | v10, v12-v14       | yes         | TCP, ITM, RTT   |

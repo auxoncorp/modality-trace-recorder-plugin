@@ -6,7 +6,7 @@ mkdir -p build
 
 (
     cd build
-    cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/gcc-toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+    cmake -DCMAKE_TOOLCHAIN_FILE=../cmake/gcc-toolchain.cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo "$@" ..
     make -j
 )
 

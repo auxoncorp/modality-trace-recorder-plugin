@@ -34,6 +34,14 @@ static void sensor_task(void* params)
     next_wake = xTaskGetTickCount();
     while(1)
     {
+        /* Intentionally trip an assert */
+        if(i == 256)
+        {
+            WARN("Going to assert");
+            vTaskDelay(UPDATE_PERIOD_MS*10);
+        }
+        configASSERT(i < 256);
+
         const BaseType_t was_delayed = xTaskDelayUntil(&next_wake, UPDATE_PERIOD_MS);
         if(was_delayed == pdFALSE)
         {
