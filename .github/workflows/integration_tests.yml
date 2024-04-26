@@ -66,7 +66,7 @@ jobs:
           components: clippy, rustfmt
           toolchain: stable
 
-      - name: Build release binary
+      - name: Build release binaries
         run: cargo build --release
 
       - name: Install Auxon client packages
@@ -104,7 +104,7 @@ jobs:
           modality config --modalityd ${{env.MODALITY_URL}}
           modality user create --use ci
           echo "MODALITY_AUTH_TOKEN=$(modality user auth-token)" >> $GITHUB_ENV
-          modality workspace create --use ${{env.MODALITY_WORKSPACE}} test_system/workspace.toml
+          modality workspace create --use ${{env.MODALITY_WORKSPACE}} test_system/config/workspace.toml
 
       - name: Update reflector plugins
         run: |
@@ -120,11 +120,11 @@ jobs:
 
       - name: Setup test network
         working-directory: test_system
-        run: sudo ./scripts/setup-network.sh &
+        run: sudo ./scripts/setup_network.sh &
 
-      - name: Build test system
+      - name: Build test system with TCP stream port
         working-directory: test_system
-        run: ./scripts/build.sh
+        run: ./scripts/build.sh -DSTREAM_PORT=TCP
 
       - name: Start Modality Reflector
         working-directory: test_system
@@ -136,27 +136,69 @@ jobs:
           docker run \
             --name reflector \
             --network=host \
+            -e GITHUB_JOB="$GITHUB_JOB" \
+            -e GITHUB_SHA="$GITHUB_SHA" \
+            -e GIT_COMMIT="$GIT_COMMIT" \
+            -e GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" \
             -e INGEST_PROTOCOL_PARENT_URL="modality-ingest://127.0.0.1" \
             -e MUTATION_PROTOCOL_PARENT_URL="modality-mutation://127.0.0.1" \
             -v "/usr/lib/modality-reflector-plugins:/usr/lib/modality-reflector-plugins" \
-            -v "$(pwd)/reflector-config.toml:/reflector-config.toml" \
+            -v "$(pwd)/config/reflector_config_tcp.toml:/reflector_config.toml" \
             -e MODALITY_AUTH_TOKEN="${{env.MODALITY_AUTH_TOKEN}}" \
-            -e REFLECTOR_OPTS="--config /reflector-config.toml --collector trace-recorder-tcp" \
+            -e REFLECTOR_OPTS="--config /reflector_config.toml --collector trace-recorder-tcp" \
             -d --rm \
             ${image}
 
-      - name: Run the system
+      - name: Run the system with TCP stream port
         working-directory: test_system
         env:
           MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
         run: |
           ./scripts/run.sh
-          docker container stop reflector
+          sleep 1
+          docker container stop -s SIGINT reflector
+
+      - name: Build test system with RTT stream port
+        working-directory: test_system
+        run: ./scripts/build.sh -DSTREAM_PORT=RTT
+
+      - name: Run the system with RTT stream port
+        working-directory: test_system
+        env:
+          MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
+        run: |
+          ./scripts/run.sh
+
+      - name: Import RTT data
+        working-directory: test_system
+        run: |
+          image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
+          if [ "${{github.event.inputs.package_channel}}" == "stable" ]; then
+            image="ghcr.io/auxoncorp/modality-reflector:latest"
+          fi
+          docker run \
+            --name reflector \
+            --network=host \
+            -e GITHUB_JOB="$GITHUB_JOB" \
+            -e GITHUB_SHA="$GITHUB_SHA" \
+            -e GIT_COMMIT="$GIT_COMMIT" \
+            -e GITHUB_RUN_NUMBER="$GITHUB_RUN_NUMBER" \
+            -e RUST_LOG=modality_trace_recorder=trace \
+            -e INGEST_PROTOCOL_PARENT_URL="modality-ingest://127.0.0.1" \
+            -e MUTATION_PROTOCOL_PARENT_URL="modality-mutation://127.0.0.1" \
+            -v "/usr/lib/modality-reflector-plugins:/usr/lib/modality-reflector-plugins" \
+            -v "$(pwd)/config/reflector_config_rtt.toml:/reflector_config.toml" \
+            -v "/tmp/rtt_log.bin:/rtt_log.bin" \
+            -e MODALITY_AUTH_TOKEN="${{env.MODALITY_AUTH_TOKEN}}" \
+            -e IMPORT=1 \
+            -e REFLECTOR_OPTS="--config /reflector_config.toml trace-recorder" \
+            ${image}
 
       - name: Inspect data
         env:
           MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
         run: |
+          modality workspace sync-indices
           modality workspace list
           modality workspace inspect ${{env.MODALITY_WORKSPACE}}
           modality segment list
@@ -165,7 +207,8 @@ jobs:
         env:
           MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
         run: |
-          conform spec eval --name device-specs
+          conform spec eval --name device-specs --segment "TCP:$GITHUB_RUN_NUMBER"
+          conform spec eval --name device-specs --segment "RTT:$GITHUB_RUN_NUMBER"
 
       - name: Export Data
         if: always()
@@ -176,7 +219,7 @@ jobs:
           tarfile=trc_test_system_modality_data_${datetime}.tar.gz
           echo TARBALL_NAME=${tarfile} >> $GITHUB_ENV
 
-          time docker container stop -s SIGTERM -t 20 modalityd
+          docker container stop -s SIGTERM -t 20 modalityd
           modality user auth-token > modalityd_data/user_auth_token
           sudo rm -rf modalityd_data/index_invalidation_events
           sudo rm -f modalityd_data/lcache

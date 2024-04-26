@@ -4,39 +4,40 @@ plugins-dir = '/usr/lib/modality-reflector-plugins'
 [ingest]
 additional-timeline-attributes = [
     "ci_job='${GITHUB_JOB-local}'",
-    "ci_commit='${GITHUB_SHA-local}'",
-    "ci_git_commit='${GIT_COMMIT-local}'",
+    "ci_commit='${GIT_SHA-local}'",
+    "ci_run_id='${GITHUB_RUN_NUMBER-local}'",
 ]
 
-[plugins.ingest.collectors.trace-recorder-tcp]
+[plugins.ingest.importers.trace-recorder]
 additional-timeline-attributes = [
     "platform='FreeRTOS'",
     "module='demo-firmware'",
+    "trc_stream_port='RTT'",
 ]
 
-[plugins.ingest.collectors.trace-recorder-tcp.metadata]
+[plugins.ingest.importers.trace-recorder.metadata]
 startup-task-name = 'init'
 user-event-channel = true
 deviant-event-id-base = 0x0FF0
-remote = "192.0.2.80:8888"
-connect-timeout = "60s"
+# NOTE: this is inside the docker container's fs
+file = "/rtt_log.bin"
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-fmt-arg-attr-keys]]
+    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
     format-string = '%s %u %d %u %u'
     attribute-keys = ['task', 'stack_size', 'stack_high_water', 'task_run_time', 'total_run_time']
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-fmt-arg-attr-keys]]
+    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
     channel = 'comms_tx'
     format-string = '%u %u %d %d'
     attribute-keys = ['type', 'seqnum', 'adc', 'pwm']
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-fmt-arg-attr-keys]]
+    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
     channel = 'adc'
     format-string = '%d'
     attribute-keys = ['measurement']
 
-    [[plugins.ingest.collectors.trace-recorder-tcp.metadata.user-event-fmt-arg-attr-keys]]
+    [[plugins.ingest.importers.trace-recorder.metadata.user-event-fmt-arg-attr-keys]]
     channel = 'pwm'
     format-string = '%d'
     attribute-keys = ['value']

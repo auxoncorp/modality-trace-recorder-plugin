@@ -5,6 +5,7 @@ $name?="demo-firmware"
 $bin?=@build/demo-firmware
 $tap?="renode-tap0"
 
+include @renode/RttReader.cs
 include @renode/commands.py
 
 using sysbus
@@ -30,14 +31,20 @@ ethernet.phy1 Id2 0
 logLevel 3
 
 # See https://github.com/renode/renode/issues/290 for more info
-# Make to sure to run the ./renode/setup-network.sh script first
+# Make to sure to run the scripts/setup_network.sh script first
 emulation CreateSwitch "switch"
 connector Connect sysbus.ethernet switch
-emulation CreateTap $tap "tap"
-connector Connect host.tap switch
+# Uncomment to connect the tap setup in setup_network.sh
+#emulation CreateTap $tap "tap"
+#connector Connect host.tap switch
 
-# Virtual time ~= real time, default is 120
-cpu PerformanceInMips 1
+# The RTT data can also be streamed over a pty
+machine CreateRttReader
+#emulation CreateUartPtyTerminal "rttio" "/tmp/rtt_uart" true
+#connector Connect RttReader rttio
+RttReader CreateFileBackend @/tmp/rtt_log.bin true
+logLevel 0 RttReader
+RttReader Start
 
 showAnalyzer sysbus.usart3
 

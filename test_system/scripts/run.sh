@@ -7,8 +7,4 @@ set -euo pipefail
     make emulate
 )
 
-sleep 1
-
-modality workspace sync-indices
-
 exit 0

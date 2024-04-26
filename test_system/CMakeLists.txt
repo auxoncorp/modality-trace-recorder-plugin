@@ -4,6 +4,21 @@ project(demo-firmware LANGUAGES C ASM)
 
 include(FetchContent)
 
+set(
+    STREAM_PORT
+    "RTT" CACHE STRING
+    "Trace-recorder stream port to use")
+set_property(CACHE STREAM_PORT PROPERTY STRINGS RTT TCP)
+message(STATUS "Stream port: ${STREAM_PORT}")
+
+if("${STREAM_PORT}" STREQUAL "RTT")
+    set(STREAM_PORT_RTT TRUE)
+    set(RENODE_SCRIPT "renode/emulate_trc_rtt.resc")
+else()
+    set(STREAM_PORT_TCP TRUE)
+    set(RENODE_SCRIPT "renode/emulate_trc_tcp.resc")
+endif()
+
 message(STATUS "Fetching dependencies")
 
 FetchContent_Declare(
@@ -113,6 +128,18 @@ set(
     ${tracerecorder_SOURCE_DIR}/kernelports/FreeRTOS/include
     ${tracerecorder_SOURCE_DIR}/include)
 
+if(DEFINED STREAM_PORT_RTT)
+    list(
+        APPEND
+        TRACING_SOURCES
+        ${tracerecorder_SOURCE_DIR}/streamports/Jlink_RTT/SEGGER_RTT.c
+        ${tracerecorder_SOURCE_DIR}/streamports/Jlink_RTT/trcStreamPort.c)
+    list(
+        APPEND
+        TRACING_INCLUDES
+        ${tracerecorder_SOURCE_DIR}/streamports/Jlink_RTT/include)
+endif()
+
 set(
     HAL_SOURCES
     ${stm32cubef4_SOURCE_DIR}/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_cortex.c
@@ -126,6 +153,53 @@ set(
     ${stm32cubef4_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Include/
     ${stm32cubef4_SOURCE_DIR}/Drivers/STM32F4xx_HAL_Driver/Inc)
 
+set(
+    APP_SOURCES
+    src/main.c
+    src/modality.c
+    src/logging.c
+    src/stats.c
+    src/ip.c
+    src/comms.c
+    src/sensor.c
+    src/actuator.c
+    src/led.c
+    src/syscall.c
+    src/hooks.c
+    src/timer.c
+    ${stm32cubef4_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/system_stm32f4xx.c
+    ${stm32cubef4_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/gcc/startup_stm32f407xx.s)
+set(
+    APP_INCLUDES
+    include
+    include/config)
+
+if(DEFINED STREAM_PORT_RTT)
+    list(
+        APPEND
+        APP_INCLUDES
+        include/config/trc_rtt)
+    list(
+        APPEND
+        TRACING_INCLUDES
+        include/config/trc_rtt)
+elseif(DEFINED STREAM_PORT_TCP)
+    list(
+        APPEND
+        APP_INCLUDES
+        include/trc_tcp
+        include/config/trc_tcp)
+    list(
+        APPEND
+        APP_SOURCES
+        src/trcStreamPort.c)
+    list(
+        APPEND
+        TRACING_INCLUDES
+        include/trc_tcp
+        include/config/trc_tcp)
+endif()
+
 add_library(
     hal
     STATIC
@@ -134,7 +208,7 @@ add_library(
 target_include_directories(
     hal
     PRIVATE
-    config
+    include/config
     PUBLIC
     ${HAL_INCLUDES})
 
@@ -157,7 +231,7 @@ add_library(
 target_include_directories(
     freertos
     PRIVATE
-    config
+    include/config
     include
     ${HAL_INCLUDES}
     PUBLIC
@@ -172,7 +246,7 @@ add_library(
 target_include_directories(
     freertos_tcpip
     PRIVATE
-    config
+    include/config
     include
     ${HAL_INCLUDES}
     PUBLIC
@@ -196,26 +270,12 @@ target_link_libraries(
 
 add_executable(
     ${PROJECT_NAME}
-    src/main.c
-    src/modality.c
-    src/logging.c
-    src/stats.c
-    src/ip.c
-    src/comms.c
-    src/sensor.c
-    src/actuator.c
-    src/led.c
-    src/syscall.c
-    src/hooks.c
-    src/timer.c
-    src/trcStreamPort.c
-    ${stm32cubef4_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/system_stm32f4xx.c
-    ${stm32cubef4_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/gcc/startup_stm32f407xx.s)
+    ${APP_SOURCES})
 
 target_include_directories(
     ${PROJECT_NAME}
     PRIVATE
-    config
+    include/config
     include)
 
 target_compile_definitions(
@@ -238,7 +298,7 @@ add_custom_command(
     POST_BUILD
     MAIN_DEPENDENCY ${PROJECT_NAME}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    COMMAND renode emulate.resc --hide-monitor
+    COMMAND renode --hide-monitor ${RENODE_SCRIPT}
     COMMENT "Emulating firmware with Renode")
 
 add_custom_target(
@@ -250,7 +310,7 @@ add_custom_command(
     POST_BUILD
     MAIN_DEPENDENCY ${PROJECT_NAME}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    COMMAND renode emulate.resc
+    COMMAND renode ${RENODE_SCRIPT}
     COMMENT "Emulating firmware with Renode")
 
 print_exec_size()
