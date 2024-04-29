@@ -4,9 +4,9 @@ A [Modality][modality] reflector plugin suite and ingest adapter library for Per
 
 ![](assets/ui.png)
 
-| Kernel Port | Snapshot Protocol | Streaming Protocol | File Import | Streaming Ports |
-| :---:       | :---:             | :---:              | :---:       | :---:           |
-| FreeRTOS    | v6                | v10, v12-v14       | yes         | TCP, ITM, RTT   |
+| Kernel Port | Streaming Protocol | File Import | Stream Ports |
+| :---:       | :---:              | :---:       | :---:           |
+| FreeRTOS    | v10, v12-v14       | yes         | TCP, ITM, RTT   |
 
 ## Getting Started
 
@@ -21,7 +21,7 @@ default behavior.
 
 * Task and ISR objects are represented as separate Modality timelines
 * The initial startup task ('(startup)') is also represented as a separate Modality timeline
-* Streaming header and snapshot fields are represented as Modality timeline attributes under the `timeline.internal.trace_recorder` prefix
+* Streaming header fields are represented as Modality timeline attributes under the `timeline.internal.trace_recorder` prefix
 * Object properties and event context fields are represented as Modality event attributes under the `event.internal.trace_recorder` prefix
 * Event field attributes are at the root level (e.g. `event.channel` for `USER_EVENT` channel field)
 * Task and ISR context switches will be synthesized into Modality timeline interactions
@@ -144,7 +144,6 @@ Note that individual plugin configuration goes in a specific table in your
 reflector configuration file, e.g. `[plugins.ingest.importers.trace-recorder.metadata]`.
 
 * `[metadata]` — Plugin configuration table.
-  - `protocol` — The protocol to use. Either `streaming`, `snapshot`, or `auto`. The default is `auto`.
   - `file` — Path to the file to import.
 
 ### TCP Collector Section

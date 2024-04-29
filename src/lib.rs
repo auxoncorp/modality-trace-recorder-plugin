@@ -1,29 +1,27 @@
-pub use attr::{AttrKeyIndex, AttrKeys, CommonEventAttrKey, CommonTimelineAttrKey};
-pub use auth::AuthTokenBytes;
+pub use attr::{AttrKeyIndex, AttrKeys, EventAttrKey, TimelineAttrKey};
 pub use client::Client;
+pub use command::Command;
 pub use config::{TraceRecorderConfig, TraceRecorderConfigEntry};
-pub use context::{ContextHandle, ContextSwitchOutcome};
-pub use import::ImportProtocol;
+pub use context_manager::ContextSwitchOutcome;
+pub use error::Error;
 pub use interruptor::Interruptor;
 pub use opts::{
     FormatArgAttributeKeysItem, FormatArgAttributeKeysSet, ReflectorOpts, RenameMap, RenameMapItem,
     TraceRecorderOpts,
 };
-pub use snapshot::SnapshotFile;
-pub use trace_recorder::{NanosecondsExt, TimelineDetails, TraceRecorderExt};
+pub use recorder_data::{NanosecondsExt, RecorderDataExt, TimelineDetails};
 
 pub const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub mod attr;
-pub mod auth;
 pub mod client;
+pub mod command;
 pub mod config;
-pub mod context;
+pub mod context_manager;
 pub mod deviant_event_parser;
-pub mod import;
+pub mod error;
 pub mod interruptor;
 pub mod opts;
-pub mod snapshot;
-pub mod streaming;
-pub mod trace_recorder;
+pub mod recorder_data;
 pub mod tracing;
+pub mod trc_reader;

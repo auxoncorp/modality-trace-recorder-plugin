@@ -1,4 +1,4 @@
-use crate::trace_recorder::Error;
+use crate::error::Error;
 use auxon_sdk::api::AttrVal;
 use byteordered::ByteOrdered;
 use std::io::Read;

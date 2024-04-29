@@ -1,9 +1,8 @@
 use clap::Parser;
 use human_bytes::human_bytes;
 use modality_trace_recorder_plugin::{
-    import, import::streaming::import as import_streaming, streaming::Command,
-    tracing::try_init_tracing_subscriber, Interruptor, ReflectorOpts, TraceRecorderConfig,
-    TraceRecorderConfigEntry, TraceRecorderOpts,
+    tracing::try_init_tracing_subscriber, trc_reader, Command, Interruptor, ReflectorOpts,
+    TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use probe_rs::{
     config::MemoryRegion,
@@ -421,7 +420,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             None
         };
         let stream = TrcRttReader::new(
-            intr,
+            intr.clone(),
             session_clone,
             up_channel,
             trc_cfg_clone.plugin.rtt_collector.core,
@@ -430,7 +429,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             metrics,
         )?;
         let mut reader = BufReader::with_capacity(buffer_size, stream);
-        import_streaming(&mut reader, trc_cfg_clone).await?;
+        trc_reader::run(&mut reader, trc_cfg_clone, intr).await?;
         Ok(())
     });
 
@@ -532,7 +531,7 @@ enum Error {
     Ratelimiter(#[from] ratelimit::Error),
 
     #[error(transparent)]
-    Import(#[from] import::Error),
+    TraceRecorder(#[from] modality_trace_recorder_plugin::Error),
 }
 
 struct TrcRttReader {

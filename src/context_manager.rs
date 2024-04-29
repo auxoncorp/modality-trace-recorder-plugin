@@ -1,143 +1,37 @@
 use crate::{
-    AttrKeyIndex, Client, ContextHandle, ContextSwitchOutcome, TraceRecorderConfig,
-    TraceRecorderExt,
+    attr::EventAttrKey,
+    client::Client,
+    config::TraceRecorderConfig,
+    error::Error,
+    recorder_data::{ContextHandle, RecorderDataExt},
 };
 use auxon_sdk::{
     api::{AttrVal, TimelineId},
-    ingest_client::{IngestClient, IngestClientInitializationError, IngestError, ReadyState},
+    ingest_client::{IngestClient, ReadyState},
     ingest_protocol::InternedAttrKey,
 };
-use std::{
-    collections::{HashMap, HashSet},
-    io::{self, Read, Seek, SeekFrom},
-    str::FromStr,
-};
+use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 use trace_recorder_parser::{
-    streaming::HeaderInfo,
     time::Timestamp,
-    types::{
-        Argument, FormatString, FormattedString, KernelPortIdentity, ObjectHandle,
-        UserEventArgRecordCount, UserEventChannel,
-    },
+    types::{Argument, FormatString, FormattedString, ObjectHandle, UserEventChannel},
 };
-use tracing::{debug, error, warn};
+use tracing::warn;
 use uuid::Uuid;
+
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+pub enum ContextSwitchOutcome {
+    /// Current task/ISR is already marked as active, we're on the same timeline
+    Same,
+    /// Switched to a new task/ISR, return the remote (previous) timeline ID and
+    /// the last event timestamped logged on the previous timeline
+    Different(TimelineId, Timestamp),
+}
 
 const TIMELINE_ID_CHANNEL_NAME: &str = "modality_timeline_id";
 const TIMELINE_ID_FORMAT_STRING: &str = "name=%s,id=%s";
 
-pub mod snapshot;
-pub mod streaming;
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Kernel port {0} is not supported")]
-    UnsupportedKernelPortIdentity(KernelPortIdentity),
-
-    #[error("Failed to locate a timeline for task object handle {0}")]
-    TaskTimelineLookup(ObjectHandle),
-
-    #[error("Failed to locate a timeline for ISR object handle {0}")]
-    IsrTimelineLookup(ObjectHandle),
-
-    #[error(
-        "User events are only allowed to up to {} events",
-        UserEventArgRecordCount::MAX
-    )]
-    ExceededMaxUserEventArgs,
-
-    #[error("The user event format string '{0}' argument count doesn't match the provided custom attribute key set '{1:?}'")]
-    FmtArgAttrKeysCountMismatch(String, Vec<String>),
-
-    #[error(transparent)]
-    TraceRecorder(#[from] crate::trace_recorder::Error),
-
-    #[error(transparent)]
-    SnapshotTraceRecorder(#[from] trace_recorder_parser::snapshot::Error),
-
-    #[error(transparent)]
-    StreamingTraceRecorder(#[from] trace_recorder_parser::streaming::Error),
-
-    #[error("Encountered an ingest client initialization error. {0}")]
-    IngestClientInitialization(#[from] IngestClientInitializationError),
-
-    #[error("Encountered an ingest client error. {0}")]
-    Ingest(#[from] IngestError),
-
-    #[error(transparent)]
-    Auth(#[from] crate::auth::AuthTokenError),
-
-    #[error("Encountered an error attemping to parse the protocol parent URL. {0}")]
-    Url(#[from] url::ParseError),
-
-    #[error(
-        "Encountered and IO error while reading the input stream ({})",
-        .0.kind()
-    )]
-    Io(#[from] io::Error),
-}
-
-#[derive(
-    Copy,
-    Clone,
-    Eq,
-    PartialEq,
-    Ord,
-    PartialOrd,
-    Hash,
-    Debug,
-    Default,
-    serde_with::DeserializeFromStr,
-)]
-pub enum ImportProtocol {
-    Snapshot,
-    Streaming,
-    #[default]
-    Auto,
-}
-
-impl FromStr for ImportProtocol {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.trim().to_lowercase().as_str() {
-            "snapshot" => ImportProtocol::Snapshot,
-            "streaming" => ImportProtocol::Streaming,
-            "auto" => ImportProtocol::Auto,
-            p => return Err(format!("Invalid import protocol '{p}'")),
-        })
-    }
-}
-
-pub async fn import<R: Read + Seek + Send>(
-    mut r: R,
-    protocol: ImportProtocol,
-    cfg: TraceRecorderConfig,
-) -> Result<(), Error> {
-    match protocol {
-        ImportProtocol::Snapshot => snapshot::import(r, cfg).await,
-        ImportProtocol::Streaming => streaming::import(r, cfg).await,
-        ImportProtocol::Auto => {
-            let current_pos = r.stream_position()?;
-            debug!("Attempting to detect streaming protocol first");
-            let found_psf_word = HeaderInfo::read_psf_word(&mut r).is_ok();
-            r.seek(SeekFrom::Start(current_pos))?;
-            if found_psf_word {
-                streaming::import(r, cfg).await
-            } else {
-                debug!("Attempting snapshot protocol");
-                snapshot::import(r, cfg).await
-            }
-        }
-    }
-}
-
-pub(crate) type SnapshotImporter =
-    Importer<crate::snapshot::TimelineAttrKey, crate::snapshot::EventAttrKey>;
-pub(crate) type StreamingImporter =
-    Importer<crate::streaming::TimelineAttrKey, crate::streaming::EventAttrKey>;
-
-pub(crate) struct Importer<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
+pub(crate) struct ContextManager {
     single_task_timeline: bool,
     flatten_isr_timelines: bool,
     use_timeline_id_channel: bool,
@@ -151,11 +45,11 @@ pub(crate) struct Importer<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
     registered_object_handles: HashSet<ObjectHandle>,
 
     common_timeline_attr_kvs: HashMap<InternedAttrKey, AttrVal>,
-    client: Client<TAK, EAK>,
+    client: Client,
 }
 
-impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
-    async fn begin<TR: TraceRecorderExt<TAK, EAK>>(
+impl ContextManager {
+    pub(crate) async fn begin<TR: RecorderDataExt>(
         client: IngestClient<ReadyState>,
         cfg: TraceRecorderConfig,
         trd: &TR,
@@ -172,7 +66,7 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
 
         let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
 
-        let mut importer = Importer {
+        let mut importer = ContextManager {
             single_task_timeline: cfg.plugin.single_task_timeline,
             flatten_isr_timelines: cfg.plugin.flatten_isr_timelines,
             use_timeline_id_channel: cfg.plugin.use_timeline_id_channel,
@@ -194,12 +88,12 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         Ok(importer)
     }
 
-    async fn end(self) -> Result<(), Error> {
+    pub(crate) async fn end(self) -> Result<(), Error> {
         self.client.close().await?;
         Ok(())
     }
 
-    fn handle_device_timeline_id_channel_event<TR: TraceRecorderExt<TAK, EAK>>(
+    pub(crate) fn handle_device_timeline_id_channel_event<TR: RecorderDataExt>(
         &mut self,
         channel: &UserEventChannel,
         format_string: &FormatString,
@@ -275,12 +169,12 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         self.object_to_timeline_ids.insert(obj_handle, timeline_id);
     }
 
-    async fn event_key<K: Into<EAK>>(&mut self, key: K) -> Result<InternedAttrKey, Error> {
+    pub(crate) async fn event_key(&mut self, key: EventAttrKey) -> Result<InternedAttrKey, Error> {
         let k = self.client.event_key(key).await?;
         Ok(k)
     }
 
-    async fn event(
+    pub(crate) async fn event(
         &mut self,
         timestamp: Timestamp,
         ordering: u128,
@@ -305,7 +199,7 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
     ///
     /// EventType::TaskSwitchTaskBegin | EventType::TaskSwitchTaskResume
     /// EventType::TaskSwitchIsrBegin | EventType::TaskSwitchIsrResume
-    async fn context_switch_in<TR: TraceRecorderExt<TAK, EAK>>(
+    pub(crate) async fn context_switch_in<TR: RecorderDataExt>(
         &mut self,
         event_context: ContextHandle,
         trd: &TR,
@@ -392,7 +286,7 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Importer<TAK, EAK> {
         }
     }
 
-    async fn add_timeline_metadata<TR: TraceRecorderExt<TAK, EAK>>(
+    pub(crate) async fn add_timeline_metadata<TR: RecorderDataExt>(
         &mut self,
         handle: ContextHandle,
         trd: &TR,

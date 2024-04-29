@@ -1,16 +1,16 @@
-use crate::attr::{AttrKeyIndex, AttrKeys};
+use crate::attr::{AttrKeys, EventAttrKey, TimelineAttrKey};
 use auxon_sdk::{
     ingest_client::{BoundTimelineState, IngestClient, IngestError},
     ingest_protocol::InternedAttrKey,
 };
 
-pub struct Client<TAK: AttrKeyIndex, EAK: AttrKeyIndex> {
-    timeline_keys: AttrKeys<TAK>,
-    event_keys: AttrKeys<EAK>,
+pub struct Client {
+    timeline_keys: AttrKeys<TimelineAttrKey>,
+    event_keys: AttrKeys<EventAttrKey>,
     inner: IngestClient<BoundTimelineState>,
 }
 
-impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Client<TAK, EAK> {
+impl Client {
     pub fn new(client: IngestClient<BoundTimelineState>) -> Self {
         Self {
             timeline_keys: AttrKeys::default(),
@@ -25,19 +25,16 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Client<TAK, EAK> {
         Ok(())
     }
 
-    pub async fn timeline_key<K: Into<TAK>>(
+    pub async fn timeline_key(
         &mut self,
-        key: K,
+        key: TimelineAttrKey,
     ) -> Result<InternedAttrKey, IngestError> {
-        let k = self.timeline_keys.get(&mut self.inner, key.into()).await?;
+        let k = self.timeline_keys.get(&mut self.inner, key).await?;
         Ok(k)
     }
 
-    pub async fn event_key<K: Into<EAK>>(
-        &mut self,
-        key: K,
-    ) -> Result<InternedAttrKey, IngestError> {
-        let k = self.event_keys.get(&mut self.inner, key.into()).await?;
+    pub async fn event_key(&mut self, key: EventAttrKey) -> Result<InternedAttrKey, IngestError> {
+        let k = self.event_keys.get(&mut self.inner, key).await?;
         Ok(k)
     }
 
@@ -48,11 +45,11 @@ impl<TAK: AttrKeyIndex, EAK: AttrKeyIndex> Client<TAK, EAK> {
     pub(crate) fn remove_timeline_string_key(
         &mut self,
         key: &str,
-    ) -> Option<(TAK, InternedAttrKey)> {
+    ) -> Option<(TimelineAttrKey, InternedAttrKey)> {
         self.timeline_keys.remove_string_key_entry(key)
     }
 
-    pub(crate) fn add_timeline_key(&mut self, key: TAK, interned_key: InternedAttrKey) {
+    pub(crate) fn add_timeline_key(&mut self, key: TimelineAttrKey, interned_key: InternedAttrKey) {
         self.timeline_keys.insert(key, interned_key)
     }
 }
