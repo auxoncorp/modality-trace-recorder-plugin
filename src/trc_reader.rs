@@ -1,27 +1,30 @@
-use crate::deviant_event_parser::DeviantEventParser;
-use crate::import::{arg_to_attr_val, Error, StreamingImporter};
-use crate::{CommonEventAttrKey, ContextSwitchOutcome, NanosecondsExt, TraceRecorderConfig};
+use crate::{
+    attr::EventAttrKey,
+    config::TraceRecorderConfig,
+    context_manager::{arg_to_attr_val, ContextManager, ContextSwitchOutcome},
+    deviant_event_parser::DeviantEventParser,
+    error::Error,
+    interruptor::Interruptor,
+    recorder_data::NanosecondsExt,
+};
 use auxon_sdk::{
     api::{AttrVal, BigInt},
     ingest_client::IngestClient,
 };
 use std::{collections::HashMap, io::Read};
 use trace_recorder_parser::{
-    streaming::event::TrackingEventCounter,
+    streaming::event::{Event, EventType, TrackingEventCounter},
+    streaming::RecorderData,
     time::StreamingInstant,
     types::{KernelPortIdentity, ObjectClass},
 };
 use tracing::{debug, warn};
 
-// TODO - factor out the common event attr handling between import_snapshot and import_streaming
-// to de-dup things
-pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Result<(), Error> {
-    use crate::streaming::EventAttrKey;
-    use trace_recorder_parser::streaming::{
-        event::{Event, EventType},
-        RecorderData,
-    };
-
+pub async fn run<R: Read + Send>(
+    mut r: R,
+    cfg: TraceRecorderConfig,
+    intr: Interruptor,
+) -> Result<(), Error> {
     let mut trd = RecorderData::read(&mut r)?;
     let frequency = trd.timestamp_info.timer_frequency;
 
@@ -50,7 +53,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
     let mut time_rollover_tracker = StreamingInstant::zero();
     let mut event_counter_tracker = TrackingEventCounter::zero();
     let mut first_event_observed = false;
-    let mut importer = StreamingImporter::begin(client, cfg.clone(), &trd).await?;
+    let mut ctx_mngr = ContextManager::begin(client, cfg.clone(), &trd).await?;
 
     while let Some((event_code, event)) = trd.read_event(&mut r)? {
         let mut attrs = HashMap::new();
@@ -76,31 +79,31 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
         let timestamp = time_rollover_tracker.elapsed(timer_ticks);
 
         attrs.insert(
-            importer.event_key(CommonEventAttrKey::Name).await?,
+            ctx_mngr.event_key(EventAttrKey::Name).await?,
             event_type.to_string().into(),
         );
         attrs.insert(
-            importer.event_key(CommonEventAttrKey::EventCode).await?,
+            ctx_mngr.event_key(EventAttrKey::EventCode).await?,
             AttrVal::Integer(u16::from(event_code).into()),
         );
         attrs.insert(
-            importer.event_key(CommonEventAttrKey::EventType).await?,
+            ctx_mngr.event_key(EventAttrKey::EventType).await?,
             event_type.to_string().into(),
         );
         attrs.insert(
-            importer.event_key(EventAttrKey::EventId).await?,
+            ctx_mngr.event_key(EventAttrKey::EventId).await?,
             AttrVal::Integer(u16::from(event_id).into()),
         );
         attrs.insert(
-            importer.event_key(EventAttrKey::ParameterCount).await?,
+            ctx_mngr.event_key(EventAttrKey::ParameterCount).await?,
             AttrVal::Integer(u8::from(parameter_count).into()),
         );
         attrs.insert(
-            importer.event_key(EventAttrKey::EventCountRaw).await?,
+            ctx_mngr.event_key(EventAttrKey::EventCountRaw).await?,
             event_count_raw.into(),
         );
         attrs.insert(
-            importer.event_key(EventAttrKey::EventCount).await?,
+            ctx_mngr.event_key(EventAttrKey::EventCount).await?,
             event_count.into(),
         );
         if let Some(dropped_events) = dropped_events {
@@ -110,7 +113,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
             );
 
             attrs.insert(
-                importer.event_key(EventAttrKey::DroppedEvents).await?,
+                ctx_mngr.event_key(EventAttrKey::DroppedEvents).await?,
                 dropped_events.into(),
             );
         }
@@ -119,26 +122,26 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
             Event::TraceStart(ev) => {
                 // TODO - check if we need to switch to a non-startup task/timeline
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.current_task_handle).into()),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::TaskName).await?,
+                    ctx_mngr.event_key(EventAttrKey::TaskName).await?,
                     ev.current_task.to_string().into(),
                 );
             }
 
             Event::IsrBegin(ev) | Event::IsrResume(ev) | Event::IsrDefine(ev) => {
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::IsrName).await?,
+                    ctx_mngr.event_key(EventAttrKey::IsrName).await?,
                     ev.name.to_string().into(),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::IsrPriority).await?,
+                    ctx_mngr.event_key(EventAttrKey::IsrPriority).await?,
                     AttrVal::Integer(u32::from(ev.priority).into()),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
 
@@ -146,20 +149,16 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                     event_type,
                     EventType::TaskSwitchIsrBegin | EventType::TaskSwitchIsrResume
                 ) {
-                    match importer.context_switch_in(ev.into(), &trd).await? {
+                    match ctx_mngr.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
                             if !cfg.plugin.disable_task_interactions {
                                 attrs.insert(
-                                    importer
-                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                        .await?,
+                                    ctx_mngr.event_key(EventAttrKey::RemoteTimelineId).await?,
                                     AttrVal::TimelineId(Box::new(remote_timeline_id)),
                                 );
                                 attrs.insert(
-                                    importer
-                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                        .await?,
+                                    ctx_mngr.event_key(EventAttrKey::RemoteTimestamp).await?,
                                     AttrVal::Timestamp(
                                         frequency.lossy_timestamp_ns(remote_timestamp),
                                     ),
@@ -179,15 +178,15 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
             | Event::TaskPriorityInherit(ev)
             | Event::TaskPriorityDisinherit(ev) => {
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::TaskName).await?,
+                    ctx_mngr.event_key(EventAttrKey::TaskName).await?,
                     ev.name.to_string().into(),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::TaskPriority).await?,
+                    ctx_mngr.event_key(EventAttrKey::TaskPriority).await?,
                     AttrVal::Integer(u32::from(ev.priority).into()),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
 
@@ -197,20 +196,16 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                         | EventType::TaskSwitchTaskResume
                         | EventType::TaskActivate
                 ) {
-                    match importer.context_switch_in(ev.into(), &trd).await? {
+                    match ctx_mngr.context_switch_in(ev.into(), &trd).await? {
                         ContextSwitchOutcome::Same => (),
                         ContextSwitchOutcome::Different(remote_timeline_id, remote_timestamp) => {
                             if !cfg.plugin.disable_task_interactions {
                                 attrs.insert(
-                                    importer
-                                        .event_key(CommonEventAttrKey::RemoteTimelineId)
-                                        .await?,
+                                    ctx_mngr.event_key(EventAttrKey::RemoteTimelineId).await?,
                                     AttrVal::TimelineId(Box::new(remote_timeline_id)),
                                 );
                                 attrs.insert(
-                                    importer
-                                        .event_key(CommonEventAttrKey::RemoteTimestamp)
-                                        .await?,
+                                    ctx_mngr.event_key(EventAttrKey::RemoteTimestamp).await?,
                                     AttrVal::Timestamp(
                                         frequency.lossy_timestamp_ns(remote_timestamp),
                                     ),
@@ -223,46 +218,38 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
 
             Event::MemoryAlloc(ev) | Event::MemoryFree(ev) => {
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::MemoryAddress)
-                        .await?,
+                    ctx_mngr.event_key(EventAttrKey::MemoryAddress).await?,
                     AttrVal::Integer(ev.address.into()),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::MemorySize).await?,
+                    ctx_mngr.event_key(EventAttrKey::MemorySize).await?,
                     AttrVal::Integer(ev.size.into()),
                 );
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::MemoryHeapCurrent)
-                        .await?,
+                    ctx_mngr.event_key(EventAttrKey::MemoryHeapCurrent).await?,
                     AttrVal::Integer(ev.heap.current.into()),
                 );
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::MemoryHeapHighMark)
-                        .await?,
+                    ctx_mngr.event_key(EventAttrKey::MemoryHeapHighMark).await?,
                     AttrVal::Integer(ev.heap.high_water_mark.into()),
                 );
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::MemoryHeapMax)
-                        .await?,
+                    ctx_mngr.event_key(EventAttrKey::MemoryHeapMax).await?,
                     AttrVal::Integer(ev.heap.max.into()),
                 );
             }
 
             Event::UnusedStack(ev) => {
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::TaskName).await?,
+                    ctx_mngr.event_key(EventAttrKey::TaskName).await?,
                     ev.task.to_string().into(),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::StackLowMark).await?,
+                    ctx_mngr.event_key(EventAttrKey::StackLowMark).await?,
                     AttrVal::Integer(ev.low_mark.into()),
                 );
             }
@@ -277,16 +264,16 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 }
                 if let Some(name) = ev.name {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::QueueName).await?,
+                        ctx_mngr.event_key(EventAttrKey::QueueName).await?,
                         AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::QueueLength).await?,
+                    ctx_mngr.event_key(EventAttrKey::QueueLength).await?,
                     AttrVal::Integer(ev.queue_length.into()),
                 );
             }
@@ -311,27 +298,27 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 }
                 if let Some(name) = ev.name {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::QueueName).await?,
+                        ctx_mngr.event_key(EventAttrKey::QueueName).await?,
                         AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::QueueMessagesWaiting)
+                    ctx_mngr
+                        .event_key(EventAttrKey::QueueMessagesWaiting)
                         .await?,
                     AttrVal::Integer(ev.messages_waiting.into()),
                 );
                 if let Some(ticks_to_wait) = ev.ticks_to_wait {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::TicksToWait).await?,
+                        ctx_mngr.event_key(EventAttrKey::TicksToWait).await?,
                         AttrVal::Integer(u32::from(ticks_to_wait).into()),
                     );
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::NanosToWait).await?,
+                        ctx_mngr.event_key(EventAttrKey::NanosToWait).await?,
                         AttrVal::Timestamp(frequency.lossy_timestamp_ns(ticks_to_wait)),
                     );
                 }
@@ -347,21 +334,17 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 }
                 if let Some(name) = ev.name {
                     attrs.insert(
-                        importer
-                            .event_key(CommonEventAttrKey::SemaphoreName)
-                            .await?,
+                        ctx_mngr.event_key(EventAttrKey::SemaphoreName).await?,
                         AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
                 if let Some(count) = ev.count {
                     attrs.insert(
-                        importer
-                            .event_key(CommonEventAttrKey::SemaphoreCount)
-                            .await?,
+                        ctx_mngr.event_key(EventAttrKey::SemaphoreCount).await?,
                         AttrVal::Integer(count.into()),
                     );
                 }
@@ -384,36 +367,32 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 }
                 if let Some(name) = ev.name {
                     attrs.insert(
-                        importer
-                            .event_key(CommonEventAttrKey::SemaphoreName)
-                            .await?,
+                        ctx_mngr.event_key(EventAttrKey::SemaphoreName).await?,
                         AttrVal::String(name.to_string().into()),
                     );
                 }
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::ObjectHandle).await?,
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
                     AttrVal::Integer(u32::from(ev.handle).into()),
                 );
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::SemaphoreCount)
-                        .await?,
+                    ctx_mngr.event_key(EventAttrKey::SemaphoreCount).await?,
                     AttrVal::Integer(ev.count.into()),
                 );
                 if let Some(ticks_to_wait) = ev.ticks_to_wait {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::TicksToWait).await?,
+                        ctx_mngr.event_key(EventAttrKey::TicksToWait).await?,
                         AttrVal::Integer(u32::from(ticks_to_wait).into()),
                     );
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::NanosToWait).await?,
+                        ctx_mngr.event_key(EventAttrKey::NanosToWait).await?,
                         AttrVal::Timestamp(frequency.lossy_timestamp_ns(ticks_to_wait)),
                     );
                 }
             }
 
             Event::User(ev) => {
-                importer.handle_device_timeline_id_channel_event(
+                ctx_mngr.handle_device_timeline_id_channel_event(
                     &ev.channel,
                     &ev.format_string,
                     &ev.formatted_string,
@@ -424,13 +403,13 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 if cfg.plugin.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::Name).await?,
+                        ctx_mngr.event_key(EventAttrKey::Name).await?,
                         ev.channel.to_string().into(),
                     );
                 } else if cfg.plugin.user_event_format_string {
                     // Use the formatted string as the event name
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::Name).await?,
+                        ctx_mngr.event_key(EventAttrKey::Name).await?,
                         ev.formatted_string.to_string().into(),
                     );
                 }
@@ -442,7 +421,7 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                     .get(ev.channel.as_str())
                 {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::Name).await?,
+                        ctx_mngr.event_key(EventAttrKey::Name).await?,
                         name.to_string().into(),
                     );
                 }
@@ -454,18 +433,18 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                     .get(ev.formatted_string.as_str())
                 {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::Name).await?,
+                        ctx_mngr.event_key(EventAttrKey::Name).await?,
                         name.to_string().into(),
                     );
                 }
 
                 attrs.insert(
-                    importer.event_key(CommonEventAttrKey::UserChannel).await?,
+                    ctx_mngr.event_key(EventAttrKey::UserChannel).await?,
                     ev.channel.to_string().into(),
                 );
                 attrs.insert(
-                    importer
-                        .event_key(CommonEventAttrKey::UserFormattedString)
+                    ctx_mngr
+                        .event_key(EventAttrKey::UserFormattedString)
                         .await?,
                     ev.formatted_string.to_string().into(),
                 );
@@ -486,28 +465,26 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
                 for (idx, arg) in ev.args.iter().enumerate() {
                     let key = if let Some(custom_arg_keys) = custom_arg_keys {
                         // SAFETY: len checked above
-                        importer
-                            .event_key(CommonEventAttrKey::CustomUserArg(
-                                custom_arg_keys[idx].clone(),
-                            ))
+                        ctx_mngr
+                            .event_key(EventAttrKey::CustomUserArg(custom_arg_keys[idx].clone()))
                             .await?
                     } else {
                         match idx {
-                            0 => importer.event_key(CommonEventAttrKey::UserArg0).await?,
-                            1 => importer.event_key(CommonEventAttrKey::UserArg1).await?,
-                            2 => importer.event_key(CommonEventAttrKey::UserArg2).await?,
-                            3 => importer.event_key(CommonEventAttrKey::UserArg3).await?,
-                            4 => importer.event_key(CommonEventAttrKey::UserArg4).await?,
-                            5 => importer.event_key(CommonEventAttrKey::UserArg5).await?,
-                            6 => importer.event_key(CommonEventAttrKey::UserArg6).await?,
-                            7 => importer.event_key(CommonEventAttrKey::UserArg7).await?,
-                            8 => importer.event_key(CommonEventAttrKey::UserArg8).await?,
-                            9 => importer.event_key(CommonEventAttrKey::UserArg9).await?,
-                            10 => importer.event_key(CommonEventAttrKey::UserArg10).await?,
-                            11 => importer.event_key(CommonEventAttrKey::UserArg11).await?,
-                            12 => importer.event_key(CommonEventAttrKey::UserArg12).await?,
-                            13 => importer.event_key(CommonEventAttrKey::UserArg13).await?,
-                            14 => importer.event_key(CommonEventAttrKey::UserArg14).await?,
+                            0 => ctx_mngr.event_key(EventAttrKey::UserArg0).await?,
+                            1 => ctx_mngr.event_key(EventAttrKey::UserArg1).await?,
+                            2 => ctx_mngr.event_key(EventAttrKey::UserArg2).await?,
+                            3 => ctx_mngr.event_key(EventAttrKey::UserArg3).await?,
+                            4 => ctx_mngr.event_key(EventAttrKey::UserArg4).await?,
+                            5 => ctx_mngr.event_key(EventAttrKey::UserArg5).await?,
+                            6 => ctx_mngr.event_key(EventAttrKey::UserArg6).await?,
+                            7 => ctx_mngr.event_key(EventAttrKey::UserArg7).await?,
+                            8 => ctx_mngr.event_key(EventAttrKey::UserArg8).await?,
+                            9 => ctx_mngr.event_key(EventAttrKey::UserArg9).await?,
+                            10 => ctx_mngr.event_key(EventAttrKey::UserArg10).await?,
+                            11 => ctx_mngr.event_key(EventAttrKey::UserArg11).await?,
+                            12 => ctx_mngr.event_key(EventAttrKey::UserArg12).await?,
+                            13 => ctx_mngr.event_key(EventAttrKey::UserArg13).await?,
+                            14 => ctx_mngr.event_key(EventAttrKey::UserArg14).await?,
                             _ => return Err(Error::ExceededMaxUserEventArgs),
                         }
                     };
@@ -527,38 +504,26 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
 
                 if let Some(dev) = maybe_dev {
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::Name).await?,
+                        ctx_mngr.event_key(EventAttrKey::Name).await?,
                         dev.kind.to_modality_name().into(),
                     );
                     attrs.insert(
-                        importer.event_key(CommonEventAttrKey::MutatorId).await?,
+                        ctx_mngr.event_key(EventAttrKey::MutatorId).await?,
                         dev.mutator_id.1,
                     );
                     attrs.insert(
-                        importer
-                            .event_key(CommonEventAttrKey::InternalMutatorId)
-                            .await?,
+                        ctx_mngr.event_key(EventAttrKey::InternalMutatorId).await?,
                         dev.mutator_id.0.to_string().into(),
                     );
                     if let Some(m) = dev.mutation_id {
+                        attrs.insert(ctx_mngr.event_key(EventAttrKey::MutationId).await?, m.1);
                         attrs.insert(
-                            importer.event_key(CommonEventAttrKey::MutationId).await?,
-                            m.1,
-                        );
-                        attrs.insert(
-                            importer
-                                .event_key(CommonEventAttrKey::InternalMutationId)
-                                .await?,
+                            ctx_mngr.event_key(EventAttrKey::InternalMutationId).await?,
                             m.0.to_string().into(),
                         );
                     }
                     if let Some(s) = dev.mutation_success {
-                        attrs.insert(
-                            importer
-                                .event_key(CommonEventAttrKey::MutationSuccess)
-                                .await?,
-                            s,
-                        );
+                        attrs.insert(ctx_mngr.event_key(EventAttrKey::MutationSuccess).await?, s);
                     }
                 } else {
                     debug!("Skipping unknown {ev}");
@@ -568,28 +533,30 @@ pub async fn import<R: Read + Send>(mut r: R, cfg: TraceRecorderConfig) -> Resul
         }
 
         attrs.insert(
-            importer.event_key(EventAttrKey::TimerTicks).await?,
+            ctx_mngr.event_key(EventAttrKey::TimerTicks).await?,
             BigInt::new_attr_val(timer_ticks.ticks().into()),
         );
         attrs.insert(
-            importer
-                .event_key(CommonEventAttrKey::TimestampTicks)
-                .await?,
+            ctx_mngr.event_key(EventAttrKey::TimestampTicks).await?,
             BigInt::new_attr_val(timestamp.ticks().into()),
         );
         attrs.insert(
-            importer.event_key(CommonEventAttrKey::Timestamp).await?,
+            ctx_mngr.event_key(EventAttrKey::Timestamp).await?,
             AttrVal::Timestamp(frequency.lossy_timestamp_ns(timestamp)),
         );
 
-        importer.event(timestamp, ordering, attrs).await?;
+        ctx_mngr.event(timestamp, ordering, attrs).await?;
 
         // We get events in logical (and tomporal) order, so only need
         // a local counter for ordering
         ordering += 1;
+
+        if intr.is_set() {
+            break;
+        }
     }
 
-    importer.end().await?;
+    ctx_mngr.end().await?;
 
     Ok(())
 }

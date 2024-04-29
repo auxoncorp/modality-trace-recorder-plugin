@@ -2,9 +2,8 @@ use clap::Parser;
 use goblin::elf::Elf;
 use itm::{DecoderError, Singles, TracePacket};
 use modality_trace_recorder_plugin::{
-    import, import::streaming::import as import_streaming, streaming::Command,
-    tracing::try_init_tracing_subscriber, Interruptor, ReflectorOpts, TraceRecorderConfig,
-    TraceRecorderConfigEntry, TraceRecorderOpts,
+    tracing::try_init_tracing_subscriber, trc_reader, Command, Interruptor, ReflectorOpts,
+    TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use probe_rs::{
     architecture::arm::{component::TraceSink, SwoConfig},
@@ -166,8 +165,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     try_init_tracing_subscriber()?;
 
     let intr = Interruptor::new();
+    let intr_clone = intr.clone();
     ctrlc::set_handler(move || {
-        if intr.is_set() {
+        if intr_clone.is_set() {
             let exit_code = if cfg!(target_family = "unix") {
                 // 128 (fatal error signal "n") + 2 (control-c is fatal error signal 2)
                 130
@@ -178,7 +178,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             };
             std::process::exit(exit_code);
         } else {
-            intr.set();
+            intr_clone.set();
         }
     })?;
 
@@ -358,7 +358,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             trc_cfg.plugin.itm_collector.stimulus_port,
             decoder.singles(),
         );
-        import_streaming(&mut stream, trc_cfg).await?;
+        trc_reader::run(&mut stream, trc_cfg, intr).await?;
         Ok(())
     });
 
@@ -408,7 +408,7 @@ enum Error {
     ProbeRs(#[from] probe_rs::Error),
 
     #[error(transparent)]
-    Import(#[from] import::Error),
+    TraceRecorder(#[from] modality_trace_recorder_plugin::Error),
 }
 
 const ITM_LAR: u64 = 0xE0000FB0;

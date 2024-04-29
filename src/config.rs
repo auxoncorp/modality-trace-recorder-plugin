@@ -1,9 +1,14 @@
-use crate::auth::{AuthTokenBytes, AuthTokenError};
-use crate::import::ImportProtocol;
-use crate::opts::{
-    FormatArgAttributeKeysSet, IgnoredObjectClasses, ReflectorOpts, RenameMap, TraceRecorderOpts,
+use crate::{
+    error::AuthTokenError,
+    opts::{
+        FormatArgAttributeKeysSet, IgnoredObjectClasses, ReflectorOpts, RenameMap,
+        TraceRecorderOpts,
+    },
 };
-use auxon_sdk::reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR};
+use auxon_sdk::{
+    auth_token::AuthToken,
+    reflector_config::{Config, TomlValue, TopLevelIngest, CONFIG_ENV_VAR},
+};
 use derive_more::{Deref, From, Into};
 use serde::Deserialize;
 use std::env;
@@ -54,7 +59,7 @@ pub struct PluginConfig {
 #[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "kebab-case", default)]
 pub struct ImportConfig {
-    pub protocol: ImportProtocol,
+    pub protocol: Option<String>,
     pub file: Option<PathBuf>,
 }
 
@@ -320,8 +325,14 @@ impl TraceRecorderConfig {
         }
     }
 
-    pub fn resolve_auth(&self) -> Result<AuthTokenBytes, AuthTokenError> {
-        AuthTokenBytes::resolve(self.auth_token.as_deref())
+    pub fn resolve_auth(&self) -> Result<AuthToken, AuthTokenError> {
+        if let Some(auth_token_hex) = self.auth_token.as_deref() {
+            Ok(auxon_sdk::auth_token::decode_auth_token_hex(
+                auth_token_hex,
+            )?)
+        } else {
+            Ok(AuthToken::load()?)
+        }
     }
 }
 
@@ -516,7 +527,6 @@ user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
 disable-task-interactions = true
-protocol = 'snapshot'
 file = '/path/to/memdump.bin'
 
     [[metadata.user-event-fmt-arg-attr-keys]]
@@ -768,7 +778,7 @@ metrics = true
                     .into_iter()
                     .collect(),
                     import: ImportConfig {
-                        protocol: ImportProtocol::Snapshot,
+                        protocol: None,
                         file: PathBuf::from("/path/to/memdump.bin").into(),
                     },
                     tcp_collector: Default::default(),

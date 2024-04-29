@@ -50,8 +50,11 @@ impl<T: AttrKeyIndex> AttrKeys<T> {
     }
 }
 
+impl AttrKeyIndex for TimelineAttrKey {}
+impl AttrKeyIndex for EventAttrKey {}
+
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-pub enum CommonTimelineAttrKey {
+pub enum TimelineAttrKey {
     #[display(fmt = "timeline.name")]
     Name,
     #[display(fmt = "timeline.description")]
@@ -80,18 +83,50 @@ pub enum CommonTimelineAttrKey {
     #[display(fmt = "timeline.internal.trace_recorder.isr_tail_chaining_threshold")]
     IsrChainingThreshold,
 
-    #[display(fmt = "timeline.internal.trace_recorder.object_handle")]
-    ObjectHandle,
-
     #[display(fmt = "timeline.internal.trace_recorder.plugin.version")]
     PluginVersion,
+
+    #[display(fmt = "timeline.internal.trace_recorder.object_handle")]
+    ObjectHandle,
+    #[display(fmt = "timeline.internal.trace_recorder.format_version")]
+    FormatVersion,
+    #[display(fmt = "timeline.internal.trace_recorder.cores")]
+    NumCores,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg")]
+    PlatformCfg,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version")]
+    PlatformCfgVersion,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version.major")]
+    PlatformCfgVersionMajor,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version.minor")]
+    PlatformCfgVersionMinor,
+    #[display(fmt = "timeline.internal.trace_recorder.platform_cfg.version.patch")]
+    PlatformCfgVersionPatch,
+    #[display(fmt = "timeline.internal.trace_recorder.heap.max")]
+    HeapSize,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.type")]
+    TimerType,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.frequency")]
+    TimerFreq,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.period")]
+    TimerPeriod,
+    #[display(fmt = "timeline.internal.trace_recorder.timer.wraparounds")]
+    TimerWraps,
+    #[display(fmt = "timeline.internal.trace_recorder.os_tick.rate_hz")]
+    TickRateHz,
+    #[display(fmt = "timeline.internal.trace_recorder.os_tick.count")]
+    TickCount,
+    #[display(fmt = "timeline.internal.trace_recorder.latest_timestamp.ticks")]
+    LatestTimestampTicks,
+    #[display(fmt = "timeline.internal.trace_recorder.latest_timestamp")]
+    LatestTimestamp,
 
     #[display(fmt = "timeline.{_0}")]
     Custom(String),
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
-pub enum CommonEventAttrKey {
+pub enum EventAttrKey {
     #[display(fmt = "event.name")]
     Name,
     #[display(fmt = "event.timestamp")]
@@ -111,12 +146,26 @@ pub enum CommonEventAttrKey {
     #[display(fmt = "event.mutation.success")]
     MutationSuccess,
 
+    #[display(fmt = "event.internal.trace_recorder.id")]
+    EventId,
+    #[display(fmt = "event.internal.trace_recorder.event_count")]
+    EventCount,
+    #[display(fmt = "event.internal.trace_recorder.event_count.raw")]
+    EventCountRaw,
+    #[display(fmt = "event.trace_recorder.dropped_preceding_events")]
+    DroppedEvents,
+    #[display(fmt = "event.internal.trace_recorder.parameter_count")]
+    ParameterCount,
+
     #[display(fmt = "event.internal.trace_recorder.code")]
     EventCode,
     #[display(fmt = "event.internal.trace_recorder.type")]
     EventType,
+
     #[display(fmt = "event.internal.trace_recorder.timestamp.ticks")]
     TimestampTicks,
+    #[display(fmt = "event.internal.trace_recorder.timer.ticks")]
+    TimerTicks,
 
     #[display(fmt = "event.internal.trace_recorder.object_handle")]
     ObjectHandle,
@@ -196,6 +245,7 @@ pub enum CommonEventAttrKey {
     UserArg13,
     #[display(fmt = "event.arg14")]
     UserArg14,
+
     #[display(fmt = "event.{_0}")]
     CustomUserArg(String),
 }

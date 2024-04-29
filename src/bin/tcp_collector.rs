@@ -1,8 +1,7 @@
 use clap::Parser;
 use modality_trace_recorder_plugin::{
-    import::streaming::import as import_streaming, streaming::Command,
-    tracing::try_init_tracing_subscriber, Interruptor, ReflectorOpts, TraceRecorderConfig,
-    TraceRecorderConfigEntry, TraceRecorderOpts,
+    tracing::try_init_tracing_subscriber, trc_reader, Command, Interruptor, ReflectorOpts,
+    TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
@@ -76,8 +75,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     try_init_tracing_subscriber()?;
 
     let intr = Interruptor::new();
+    let intr_clone = intr.clone();
     ctrlc::set_handler(move || {
-        if intr.is_set() {
+        if intr_clone.is_set() {
             let exit_code = if cfg!(target_family = "unix") {
                 // 128 (fatal error signal "n") + 2 (control-c is fatal error signal 2)
                 130
@@ -88,7 +88,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             };
             std::process::exit(exit_code);
         } else {
-            intr.set();
+            intr_clone.set();
         }
     })?;
 
@@ -140,11 +140,13 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     let disable_control_plane = cfg.plugin.tcp_collector.disable_control_plane;
     let mut stream_clone = stream.try_clone()?;
     let mut join_handle =
-        tokio::spawn(async move { import_streaming(&mut stream_clone, cfg).await });
+        tokio::spawn(async move { trc_reader::run(&mut stream_clone, cfg, intr).await });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             debug!("User signaled shutdown");
+            std::thread::sleep(Duration::from_millis(100));
+            join_handle.abort();
         }
         res = &mut join_handle => {
             match res? {

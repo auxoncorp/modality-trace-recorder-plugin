@@ -37,9 +37,13 @@ behavior "Task Activation Time"
 end
 
 # @type = "error logs"
-behavior "No Errors"
+behavior "No Errors or dropped events"
     prohibited case "no error messages exist"
         * @ * (_.channel = "error" OR _.channel = "#WFR")
+    end
+    
+    prohibited case "no dropped events"
+        * @ * (exists(_.trace_recorder.dropped_preceding_events))
     end
 end
 

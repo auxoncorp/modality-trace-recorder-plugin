@@ -1,7 +1,7 @@
 use clap::Parser;
 use modality_trace_recorder_plugin::{
-    import::import, tracing::try_init_tracing_subscriber, ImportProtocol, Interruptor,
-    ReflectorOpts, SnapshotFile, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
+    tracing::try_init_tracing_subscriber, trc_reader, Interruptor, ReflectorOpts,
+    TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::path::PathBuf;
 use std::{fs::File, io::BufReader};
@@ -16,24 +16,6 @@ pub struct Opts {
 
     #[clap(flatten)]
     pub tr_opts: TraceRecorderOpts,
-
-    /// Use the snapshot protocol instead of automatically detecting which protocol to use
-    #[clap(
-        long,
-        name = "snapshot-protocol",
-        conflicts_with = "streaming-protocol",
-        help_heading = "PROTOCOL CONFIGURATION"
-    )]
-    pub snapshot: bool,
-
-    /// Use the streaming protocol instead of automatically detecting which protocol to use
-    #[clap(
-        long,
-        name = "streaming-protocol",
-        conflicts_with = "snapshot-protocol",
-        help_heading = "PROTOCOL CONFIGURATION"
-    )]
-    pub streaming: bool,
 
     /// Path to file
     #[clap(
@@ -66,8 +48,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     try_init_tracing_subscriber()?;
 
     let intr = Interruptor::new();
+    let intr_clone = intr.clone();
     ctrlc::set_handler(move || {
-        if intr.is_set() {
+        if intr_clone.is_set() {
             let exit_code = if cfg!(target_family = "unix") {
                 // 128 (fatal error signal "n") + 2 (control-c is fatal error signal 2)
                 130
@@ -78,7 +61,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             };
             std::process::exit(exit_code);
         } else {
-            intr.set();
+            intr_clone.set();
         }
     })?;
 
@@ -89,14 +72,6 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         false,
     )?;
 
-    let protocol = if opts.snapshot {
-        ImportProtocol::Snapshot
-    } else if opts.streaming {
-        ImportProtocol::Streaming
-    } else {
-        cfg.plugin.import.protocol
-    };
-
     let file_path = if let Some(p) = opts.path {
         p
     } else {
@@ -106,10 +81,10 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.plugin.import.file.clone().ok_or(MissingFilePathError)?
     };
 
-    let f = SnapshotFile::open(&file_path)?;
+    let f = File::open(&file_path).map_err(|e| FileOpenError::Io(file_path.clone(), e))?;
     let mut join_handle = tokio::spawn(async move {
-        let reader = BufReader::new(File::from(f));
-        import(reader, protocol, cfg).await
+        let reader = BufReader::new(f);
+        trc_reader::run(reader, cfg, intr).await
     });
 
     tokio::select! {
@@ -125,4 +100,13 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Ok(())
+}
+
+#[derive(Debug, thiserror::Error)]
+enum FileOpenError {
+    #[error(
+          "Encountered and IO error while opening file '{0}' ({})",
+          .1.kind()
+      )]
+    Io(PathBuf, #[source] std::io::Error),
 }
