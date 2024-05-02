@@ -58,8 +58,8 @@ The output will look like the following (`[timestamp]:<event-id>:<parameter-coun
 ### Warnings Channel
 
 Trace recorder uses an internal reserved `USER_EVENT` channel named `#WFR` for internal errors and warnings.
-When we encountered these events, a warning message is logged to the console in addition to being recorded.
-We automatically map these to a Modality event named `WARNING_FROM_RECORDER`.
+When we encounter these events, a warning message is logged to the console in addition to being recorded.
+They are automatically mappped to the Modality event name `WARNING_FROM_RECORDER`.
 
 ```
 $ modality query 'WARNING_FROM_RECORDER@*'
@@ -70,8 +70,6 @@ Result 1:
 ║               formatted_string = No slots left in Stack Monitor
 ║               name = WARNING_FROM_RECORDER
 ║               timestamp = +2.674739s
-║               modality.query.label = WARNING_FROM_RECORDER@*
-║
 
 Result 2:
 ═════════
@@ -80,7 +78,6 @@ Result 2:
 ║               formatted_string = Exceeded TRC_CFG_ENTRY_TABLE_SLOTS
 ║               name = WARNING_FROM_RECORDER
 ║               timestamp = +2.684145s
-║               modality.query.label = WARNING_FROM_RECORDER@*
 ```
 
 ## Configuration
