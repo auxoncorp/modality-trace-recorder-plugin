@@ -15,14 +15,16 @@
 
 static void led_timer_handler(TimerHandle_t timer);
 
-static traceHandle g_isr_handle = NULL;
+static TraceISRHandle_t g_isr_handle = NULL;
 
 void led_init(void)
 {
+    traceResult tr;
+
     INFO("Initializing LED ISR");
 
-    g_isr_handle = xTraceSetISRProperties("LEDTimerISR", TIMER_PRIO);
-    configASSERT(g_isr_handle != NULL);
+    tr = xTraceISRRegister("LEDTimerISR", TIMER_PRIO, &g_isr_handle);
+    configASSERT(tr == TRC_SUCCESS);
 
     /* Mock an ISR using a timer */
     TimerHandle_t mock_isr_timer = xTimerCreate(LED_TIMER_NAME, LED_BLINK_PERIOD_MS, pdTRUE, NULL, led_timer_handler);
@@ -33,7 +35,13 @@ void led_init(void)
 
 static void led_timer_handler(TimerHandle_t timer)
 {
-    vTraceStoreISRBegin(g_isr_handle);
+    traceResult tr;
+
+    tr = xTraceISRBegin(g_isr_handle);
+    configASSERT(tr == TRC_SUCCESS);
+
     INFO("blink");
-    vTraceStoreISREnd(0);
+
+    tr = xTraceISREnd(0);
+    configASSERT(tr == TRC_SUCCESS);
 }
