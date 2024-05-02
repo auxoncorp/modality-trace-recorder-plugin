@@ -25,7 +25,7 @@ pub async fn run<R: Read + Send>(
     cfg: TraceRecorderConfig,
     intr: Interruptor,
 ) -> Result<(), Error> {
-    let mut trd = RecorderData::read(&mut r)?;
+    let mut trd = RecorderData::find(&mut r)?;
     let frequency = trd.timestamp_info.timer_frequency;
 
     if trd.header.kernel_port != KernelPortIdentity::FreeRtos {
@@ -67,6 +67,13 @@ pub async fn run<R: Read + Send>(
                     | TrcError::FormattedString(_) => {
                         warn!(err=%e, "Downgrading to single timeline mode due to an error in the data");
                         ctx_mngr.set_degraded_single_timeline_mode();
+                        continue;
+                    }
+                    TrcError::TraceRestarted(psf_start_word_endianness) => {
+                        warn!("Detected a restarted trace stream");
+                        trd =
+                            RecorderData::read_with_endianness(psf_start_word_endianness, &mut r)?;
+                        first_event_observed = false;
                         continue;
                     }
                     _ => {
