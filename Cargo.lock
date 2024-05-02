@@ -2676,9 +2676,9 @@ dependencies = [
 
 [[package]]
 name = "trace-recorder-parser"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ac3d63d1cf40d135a432d447cd93a18e31d30cc993e1718f7b51a3d4bbcc04a"
+checksum = "0c6fc5ec0a7d901b1ae2991713746c8bfb2b36c0f88557566d898f95ffaca4a1"
 dependencies = [
  "byteordered",
  "derive_more",
