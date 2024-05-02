@@ -93,6 +93,12 @@ impl ContextManager {
         Ok(())
     }
 
+    pub(crate) fn set_degraded_single_timeline_mode(&mut self) {
+        self.single_task_timeline = true;
+        self.flatten_isr_timelines = true;
+        self.handle_of_last_logged_context = ContextHandle::Task(self.startup_task_handle);
+    }
+
     pub(crate) fn handle_device_timeline_id_channel_event<TR: RecorderDataExt>(
         &mut self,
         channel: &UserEventChannel,

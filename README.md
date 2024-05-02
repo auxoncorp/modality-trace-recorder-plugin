@@ -55,6 +55,34 @@ The output will look like the following (`[timestamp]:<event-id>:<parameter-coun
 2024-04-18T16:02:56.119687Z DEBUG modality_trace_recorder_plugin::import::streaming: Skipping unknown [13738495]:7A:1:385
 ```
 
+### Warnings Channel
+
+Trace recorder uses an internal reserved `USER_EVENT` channel named `#WFR` for internal errors and warnings.
+When we encountered these events, a warning message is logged to the console in addition to being recorded.
+We automatically map these to a Modality event named `WARNING_FROM_RECORDER`.
+
+```
+$ modality query 'WARNING_FROM_RECORDER@*'
+Result 1:
+═════════
+■             WARNING_FROM_RECORDER @ TzCtrl   [%1548e96bf8f74a03970e049bd53598ce:44]
+║               channel = #WFR
+║               formatted_string = No slots left in Stack Monitor
+║               name = WARNING_FROM_RECORDER
+║               timestamp = +2.674739s
+║               modality.query.label = WARNING_FROM_RECORDER@*
+║
+
+Result 2:
+═════════
+■             WARNING_FROM_RECORDER @ (startup)   [%ceedb01a2e184a8d9e725cdc7bf3b424:62]
+║               channel = #WFR
+║               formatted_string = Exceeded TRC_CFG_ENTRY_TABLE_SLOTS
+║               name = WARNING_FROM_RECORDER
+║               timestamp = +2.684145s
+║               modality.query.label = WARNING_FROM_RECORDER@*
+```
+
 ## Configuration
 
 All of the plugins can be configured through a TOML configuration file (from either the `--config` option or the `MODALITY_REFLECTOR_CONFIG` environment variable).

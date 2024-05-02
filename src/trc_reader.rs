@@ -55,7 +55,27 @@ pub async fn run<R: Read + Send>(
     let mut first_event_observed = false;
     let mut ctx_mngr = ContextManager::begin(client, cfg.clone(), &trd).await?;
 
-    while let Some((event_code, event)) = trd.read_event(&mut r)? {
+    loop {
+        let (event_code, event) = match trd.read_event(&mut r) {
+            Ok(Some((ec, ev))) => (ec, ev),
+            Ok(None) => break,
+            Err(e) => {
+                use trace_recorder_parser::streaming::Error as TrcError;
+                match e {
+                    TrcError::ObjectLookup(_)
+                    | TrcError::InvalidObjectHandle(_)
+                    | TrcError::FormattedString(_) => {
+                        warn!(err=%e, "Downgrading to single timeline mode due to an error in the data");
+                        ctx_mngr.set_degraded_single_timeline_mode();
+                        continue;
+                    }
+                    _ => {
+                        let _ = ctx_mngr.end().await;
+                        return Err(e.into());
+                    }
+                }
+            }
+        };
         let mut attrs = HashMap::new();
 
         let event_type = event_code.event_type();
@@ -423,6 +443,15 @@ pub async fn run<R: Read + Send>(
                     attrs.insert(
                         ctx_mngr.event_key(EventAttrKey::Name).await?,
                         name.to_string().into(),
+                    );
+                } else if ev.channel.as_str() == "#WFR" {
+                    warn!(
+                        msg = %ev.formatted_string,
+                        "Target produced a warning on the '#WFR' channel"
+                    );
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::Name).await?,
+                        "WARNING_FROM_RECORDER".into(),
                     );
                 }
 
