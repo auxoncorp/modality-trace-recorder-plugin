@@ -1,4 +1,4 @@
-# modality-trace-recorder-plugin &emsp; ![ci] [![crates.io]](https://crates.io/crates/modality-trace-recorder-plugin)
+# modality-trace-recorder-plugin
 
 A [Modality][modality] reflector plugin suite and ingest adapter library for Percepio's [TraceRecorder][trace-recorder] data.
 
@@ -530,8 +530,5 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-[ci]: https://github.com/auxoncorp/modality-trace-recorder-plugin/workflows/CI/badge.svg
-[crates.io]: https://img.shields.io/crates/v/modality-trace-recorder-plugin.svg
-[docs.rs]: https://docs.rs/modality-trace-recorder-plugin/badge.svg
 [trace-recorder]: https://github.com/percepio/TraceRecorderSource
 [modality]: https://auxon.io/products/modality
