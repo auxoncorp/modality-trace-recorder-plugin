@@ -202,6 +202,14 @@ pub struct TraceRecorderOpts {
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub ignore_object_class: Vec<IgnoredObjectClass>,
+
+    /// Include unknown events instead of ignoring them.
+    #[clap(
+        long,
+        name = "include-unknown-events",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub include_unknown_events: bool,
 }
 
 /// A map of trace recorder USER_EVENT channels/format-strings to Modality event names

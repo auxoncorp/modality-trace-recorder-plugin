@@ -243,6 +243,39 @@ pub async fn run<R: Read + Send>(
                 }
             }
 
+            Event::TaskNotify(ev)
+            | Event::TaskNotifyFromIsr(ev)
+            | Event::TaskNotifyWait(ev)
+            | Event::TaskNotifyWaitBlock(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Task)
+                {
+                    continue;
+                }
+                if let Some(name) = ev.task_name {
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::TaskName).await?,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::TicksToWait).await?,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::NanosToWait).await?,
+                        AttrVal::Timestamp(frequency.lossy_timestamp_ns(ticks_to_wait)),
+                    );
+                }
+            }
+
             Event::MemoryAlloc(ev) | Event::MemoryFree(ev) => {
                 attrs.insert(
                     ctx_mngr.event_key(EventAttrKey::MemoryAddress).await?,
@@ -338,6 +371,62 @@ pub async fn run<R: Read + Send>(
                         .event_key(EventAttrKey::QueueMessagesWaiting)
                         .await?,
                     AttrVal::Integer(ev.messages_waiting.into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::TicksToWait).await?,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::NanosToWait).await?,
+                        AttrVal::Timestamp(frequency.lossy_timestamp_ns(ticks_to_wait)),
+                    );
+                }
+            }
+
+            Event::MutexCreate(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Mutex)
+                {
+                    continue;
+                }
+                if let Some(name) = ev.name {
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::MutexName).await?,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+            }
+
+            Event::MutexGive(ev)
+            | Event::MutexGiveBlock(ev)
+            | Event::MutexGiveRecursive(ev)
+            | Event::MutexTake(ev)
+            | Event::MutexTakeBlock(ev)
+            | Event::MutexTakeRecursive(ev)
+            | Event::MutexTakeRecursiveBlock(ev) => {
+                if cfg
+                    .plugin
+                    .ignored_object_classes
+                    .contains(ObjectClass::Mutex)
+                {
+                    continue;
+                }
+                if let Some(name) = ev.name {
+                    attrs.insert(
+                        ctx_mngr.event_key(EventAttrKey::MutexName).await?,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    ctx_mngr.event_key(EventAttrKey::ObjectHandle).await?,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
                 );
                 if let Some(ticks_to_wait) = ev.ticks_to_wait {
                     attrs.insert(
@@ -561,8 +650,12 @@ pub async fn run<R: Read + Send>(
                     if let Some(s) = dev.mutation_success {
                         attrs.insert(ctx_mngr.event_key(EventAttrKey::MutationSuccess).await?, s);
                     }
-                } else {
-                    debug!("Skipping unknown {ev}");
+                } else if !cfg.plugin.include_unknown_events {
+                    debug!(
+                        %event_type,
+                        timestamp = %ev.timestamp,
+                        id = %ev.code.event_id(),
+                        event_count = %ev.event_count, "Skipping unknown");
                     continue;
                 }
             }

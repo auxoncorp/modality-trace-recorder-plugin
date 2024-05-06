@@ -43,6 +43,7 @@ pub struct PluginConfig {
     pub disable_task_interactions: bool,
     pub use_timeline_id_channel: bool,
     pub deviant_event_id_base: Option<u16>,
+    pub include_unknown_events: bool,
     pub ignored_object_classes: IgnoredObjectClasses,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
@@ -259,6 +260,11 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.use_timeline_id_channel
             },
+            include_unknown_events: if tr_opts.include_unknown_events {
+                true
+            } else {
+                cfg_plugin.include_unknown_events
+            },
             deviant_event_id_base: tr_opts
                 .deviant_event_id_base
                 .or(cfg_plugin.deviant_event_id_base),
@@ -349,6 +355,7 @@ mod internal {
         pub flatten_isr_timelines: bool,
         pub disable_task_interactions: bool,
         pub use_timeline_id_channel: bool,
+        pub include_unknown_events: bool,
         pub deviant_event_id_base: Option<u16>,
         pub ignored_object_classes: IgnoredObjectClasses,
         pub user_event_channel: bool,
@@ -370,6 +377,7 @@ mod internal {
                 flatten_isr_timelines: c.flatten_isr_timelines,
                 disable_task_interactions: c.disable_task_interactions,
                 use_timeline_id_channel: c.use_timeline_id_channel,
+                include_unknown_events: c.include_unknown_events,
                 deviant_event_id_base: c.deviant_event_id_base,
                 ignored_object_classes: c.ignored_object_classes,
                 user_event_channel: c.user_event_channel,
@@ -527,6 +535,7 @@ user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
 disable-task-interactions = true
+include-unknown-events = true
 file = '/path/to/memdump.bin'
 
     [[metadata.user-event-fmt-arg-attr-keys]]
@@ -560,6 +569,7 @@ user-event-channel = true
 user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
+include-unknown-events = true
 disable-task-interactions = true
 disable-control-plane = true
 restart = true
@@ -599,6 +609,7 @@ single-task-timeline = true
 flatten-isr-timelines = true
 disable-control-plane = true
 use-timeline-id-channel = true
+include-unknown-events = true
 disable-task-interactions = true
 ignored-object-classes = ['queue', 'Semaphore']
 restart = true
@@ -647,6 +658,7 @@ control-block-address = 0xFFFF
 user-event-channel = true
 user-event-format-string = true
 single-task-timeline = true
+include-unknown-events = true
 flatten-isr-timelines = true
 disable-control-plane = true
 use-timeline-id-channel = true
@@ -749,6 +761,7 @@ metrics = true
                     disable_task_interactions: true,
                     use_timeline_id_channel: false,
                     deviant_event_id_base: None,
+                    include_unknown_events: true,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
@@ -844,6 +857,7 @@ metrics = true
                     disable_task_interactions: true,
                     use_timeline_id_channel: false,
                     deviant_event_id_base: None,
+                    include_unknown_events: true,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
@@ -941,6 +955,7 @@ metrics = true
                     disable_task_interactions: true,
                     use_timeline_id_channel: true,
                     deviant_event_id_base: None,
+                    include_unknown_events: true,
                     ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
                         .into_iter()
                         .collect(),
@@ -1051,6 +1066,7 @@ metrics = true
                     disable_task_interactions: true,
                     use_timeline_id_channel: true,
                     deviant_event_id_base: None,
+                    include_unknown_events: true,
                     ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
                         .into_iter()
                         .collect(),

@@ -41,6 +41,8 @@ convert timestamp ticks to nanoseconds.
 * When we detect dropped events, the event attribute `event.trace_recorder.dropped_preceding_events` is added to the current event
   and a warning message is logged.
 
+### Unknown Events
+
 Note that we don't support the entirety of the trace-recorder event model.
 When we encounter an event type that is not supported, we log a debug message and ignore it but it's not considered dropped (e.g. we still use it to update the event counter tracking).
 
@@ -50,16 +52,54 @@ RUST_LOG=modality_trace_recorder=debug
 modality-reflector run --config reflector-config.toml --collector trace-recorder-rtt
 ```
 
-The output will look like the following (`[timestamp]:<event-id>:<parameter-count>:<event-count>`):
+The output will look like the following:
 ```text
-2024-04-18T16:02:56.119687Z DEBUG modality_trace_recorder_plugin::import::streaming: Skipping unknown [13738495]:7A:1:385
+2024-05-06T13:52:45.270020Z DEBUG modality_trace_recorder_plugin::trc_reader: Skipping unknown event_type=TASK_DELAY timestamp=2829820537 id=7A event_count=31002
+```
+
+To include unknown events set `include-unknown-events = true` in the configuration file (or `--include-unknown-events` at the CLI).
+
+```bash
+modality query '*@* (_.name = "*FAILED" OR _.name = "TASK_DELAY_UNTIL")' --show-internal
+```
+
+```text
+Result 1:
+═════════
+■             QUEUE_RECEIVE_FAILED @ (startup)   [%bb222bbc6f434e1b85f8471dea241152:ad]
+║               internal.trace_recorder.code = 12387
+║               internal.trace_recorder.event_count = 205
+║               internal.trace_recorder.event_count.raw = 205
+║               internal.trace_recorder.id = 99
+║               internal.trace_recorder.parameter_count = 3
+║               internal.trace_recorder.timer.ticks = 447344223
+║               internal.trace_recorder.timestamp.ticks = 447344223
+║               internal.trace_recorder.type = QUEUE_RECEIVE_FAILED
+║               name = QUEUE_RECEIVE_FAILED
+║               timestamp = +2.6840653s
+║
+
+Result 2:
+═════════
+■             TASK_DELAY_UNTIL @ (startup)   [%bb222bbc6f434e1b85f8471dea241152:6e]
+║               internal.trace_recorder.code = 4217
+║               internal.trace_recorder.event_count = 138
+║               internal.trace_recorder.event_count.raw = 138
+║               internal.trace_recorder.id = 121
+║               internal.trace_recorder.parameter_count = 1
+║               internal.trace_recorder.timer.ticks = 445620413
+║               internal.trace_recorder.timestamp.ticks = 445620413
+║               internal.trace_recorder.type = TASK_DELAY_UNTIL
+║               name = TASK_DELAY_UNTIL
+║               timestamp = +2.9737225s
+║
 ```
 
 ### Warnings Channel
 
 Trace recorder uses an internal reserved `USER_EVENT` channel named `#WFR` for internal errors and warnings.
 When we encounter these events, a warning message is logged to the console in addition to being recorded.
-They are automatically mappped to the Modality event name `WARNING_FROM_RECORDER`.
+They are automatically mapped to the Modality event name `WARNING_FROM_RECORDER`.
 
 ```
 $ modality query 'WARNING_FROM_RECORDER@*'
@@ -106,6 +146,7 @@ These sections are the same for each of the plugins.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
   - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the `modality_timeline_id` channel (format is `name=<obj-name>,id=<timeline-id>`).
   - `deviant-event-id-base` — Parse Deviant custom events using the provided base event ID.
+  - `include-unknown-events` — Include unknown events instead of ignoring them.
   - `ignored-object-classes` — Array of object classes to ignore processing during ingest (e.g. `[queue, semaphore]`)
   - `user-event-channel` — Instead of `USER_EVENT @ <task-name>`, use the user event channel as the event name (`<channel> @ <task-name>`).
   - `user-event-format-string` — Instead of `USER_EVENT @ <task-name>`, use the user event format string as the event name (`<format-string> @ <task-name>`).

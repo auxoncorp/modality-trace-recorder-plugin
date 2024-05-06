@@ -201,6 +201,9 @@ pub enum EventAttrKey {
     #[display(fmt = "event.messages_waiting")]
     QueueMessagesWaiting,
 
+    #[display(fmt = "event.mutex")]
+    MutexName,
+
     #[display(fmt = "event.semaphore")]
     SemaphoreName,
     #[display(fmt = "event.count")]
