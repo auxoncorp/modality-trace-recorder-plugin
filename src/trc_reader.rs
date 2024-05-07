@@ -1,11 +1,6 @@
 use crate::{
-    attr::EventAttrKey,
-    config::TraceRecorderConfig,
-    context_manager::{arg_to_attr_val, ContextManager, ContextSwitchOutcome},
-    deviant_event_parser::DeviantEventParser,
-    error::Error,
-    interruptor::Interruptor,
-    recorder_data::NanosecondsExt,
+    attr::EventAttrKey, config::TraceRecorderConfig, deviant_event_parser::DeviantEventParser,
+    error::Error, interruptor::Interruptor, recorder_data::NanosecondsExt,
 };
 use auxon_sdk::{
     api::{AttrVal, BigInt},
@@ -44,6 +39,7 @@ pub async fn run<R: Read + Send>(
     } else {
         None
     };
+    /*
 
     let client =
         IngestClient::connect(&cfg.protocol_parent_url()?, cfg.ingest.allow_insecure_tls).await?;
@@ -105,26 +101,6 @@ pub async fn run<R: Read + Send>(
         let timer_ticks = event.timestamp();
         let timestamp = time_rollover_tracker.elapsed(timer_ticks);
 
-        attrs.insert(
-            ctx_mngr.event_key(EventAttrKey::Name).await?,
-            event_type.to_string().into(),
-        );
-        attrs.insert(
-            ctx_mngr.event_key(EventAttrKey::EventCode).await?,
-            AttrVal::Integer(u16::from(event_code).into()),
-        );
-        attrs.insert(
-            ctx_mngr.event_key(EventAttrKey::EventType).await?,
-            event_type.to_string().into(),
-        );
-        attrs.insert(
-            ctx_mngr.event_key(EventAttrKey::EventId).await?,
-            AttrVal::Integer(u16::from(event_id).into()),
-        );
-        attrs.insert(
-            ctx_mngr.event_key(EventAttrKey::ParameterCount).await?,
-            AttrVal::Integer(u8::from(parameter_count).into()),
-        );
         attrs.insert(
             ctx_mngr.event_key(EventAttrKey::EventCountRaw).await?,
             event_count_raw.into(),
@@ -686,6 +662,7 @@ pub async fn run<R: Read + Send>(
     }
 
     ctx_mngr.end().await?;
+    */
 
     Ok(())
 }

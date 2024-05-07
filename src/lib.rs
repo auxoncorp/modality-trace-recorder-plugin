@@ -9,7 +9,7 @@ pub use opts::{
     FormatArgAttributeKeysItem, FormatArgAttributeKeysSet, ReflectorOpts, RenameMap, RenameMapItem,
     TraceRecorderOpts,
 };
-pub use recorder_data::{NanosecondsExt, RecorderDataExt, TimelineDetails};
+pub use recorder_data::{NanosecondsExt, RecorderDataExt};
 
 pub const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -18,6 +18,7 @@ pub mod client;
 pub mod command;
 pub mod config;
 pub mod context_manager;
+pub mod context_manager_new;
 pub mod deviant_event_parser;
 pub mod error;
 pub mod interruptor;

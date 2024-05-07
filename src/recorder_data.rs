@@ -1,24 +1,25 @@
 use crate::{
-    attr::TimelineAttrKey, client::Client, config::TraceRecorderConfig, error::Error,
+    attr::{EventAttrKey, TimelineAttrKey},
+    config::{PluginConfig, TraceRecorderConfig},
+    error::Error,
     PLUGIN_VERSION,
 };
 use async_trait::async_trait;
 use auxon_sdk::{
     api::{AttrVal, BigInt, Nanoseconds},
-    ingest_protocol::InternedAttrKey,
     reflector_config::AttrKeyEqValuePair,
 };
 use derive_more::Display;
 use std::collections::HashMap;
 use trace_recorder_parser::{
     streaming::{
-        event::{IsrEvent, TaskEvent},
+        event::{Event, EventCode, IsrEvent, TaskEvent},
         RecorderData,
     },
     time::{Frequency, Timestamp},
-    types::{ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT},
+    types::{Argument, ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT},
 };
-use tracing::debug;
+use tracing::{debug, warn};
 use uuid::Uuid;
 
 pub trait NanosecondsExt {
@@ -73,14 +74,8 @@ impl From<IsrEvent> for ContextHandle {
     }
 }
 
-pub struct TimelineDetails {
-    pub name_key: TimelineAttrKey,
-    pub name: String,
-    pub description_key: TimelineAttrKey,
-    pub description: String,
-    pub object_handle_key: TimelineAttrKey,
-    pub object_handle: ObjectHandle,
-}
+pub type EventAttributes = HashMap<EventAttrKey, AttrVal>;
+pub type TimelineAttributes = HashMap<TimelineAttrKey, AttrVal>;
 
 #[async_trait]
 pub trait RecorderDataExt {
@@ -88,17 +83,25 @@ pub trait RecorderDataExt {
 
     fn object_handle(&self, obj_name: &str) -> Option<ObjectHandle>;
 
-    fn timeline_details(
+    fn add_core_event_attributes(
         &self,
-        handle: ContextHandle,
-        startup_task_name: Option<&str>,
-    ) -> Result<TimelineDetails, Error>;
+        cfg: &PluginConfig,
+        event_code: EventCode,
+        event: &Event,
+        attrs: &mut EventAttributes,
+    ) -> Result<(), Error>;
 
-    async fn setup_common_timeline_attrs(
+    fn add_core_timeline_attributes(
+        &self,
+        cfg: &PluginConfig,
+        handle: ContextHandle,
+        attrs: &mut TimelineAttributes,
+    ) -> Result<(), Error>;
+
+    fn common_timeline_attributes(
         &self,
         cfg: &TraceRecorderConfig,
-        client: &mut Client,
-    ) -> Result<HashMap<InternedAttrKey, AttrVal>, Error>;
+    ) -> Result<TimelineAttributes, Error>;
 }
 
 #[async_trait]
@@ -115,11 +118,378 @@ impl RecorderDataExt for RecorderData {
                 .symbol_handle(obj_name, Some(ObjectClass::Isr)))
     }
 
-    fn timeline_details(
+    fn add_core_event_attributes(
         &self,
+        cfg: &PluginConfig,
+        event_code: EventCode,
+        event: &Event,
+        attrs: &mut EventAttributes,
+    ) -> Result<(), Error> {
+        let event_type = event_code.event_type();
+        let event_id = event_code.event_id();
+        let parameter_count = event_code.parameter_count();
+
+        attrs.insert(EventAttrKey::Name, event_type.to_string().into());
+        attrs.insert(
+            EventAttrKey::EventCode,
+            AttrVal::Integer(u16::from(event_code).into()),
+        );
+        attrs.insert(EventAttrKey::EventType, event_type.to_string().into());
+        attrs.insert(
+            EventAttrKey::EventId,
+            AttrVal::Integer(u16::from(event_id).into()),
+        );
+        attrs.insert(
+            EventAttrKey::ParameterCount,
+            AttrVal::Integer(u8::from(parameter_count).into()),
+        );
+
+        match event {
+            Event::TraceStart(ev) => {
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.current_task_handle).into()),
+                );
+                attrs.insert(EventAttrKey::TaskName, ev.current_task.to_string().into());
+            }
+
+            Event::IsrBegin(ev) | Event::IsrResume(ev) | Event::IsrDefine(ev) => {
+                attrs.insert(EventAttrKey::IsrName, ev.name.to_string().into());
+                attrs.insert(
+                    EventAttrKey::IsrPriority,
+                    AttrVal::Integer(u32::from(ev.priority).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+            }
+
+            Event::TaskBegin(ev)
+            | Event::TaskReady(ev)
+            | Event::TaskResume(ev)
+            | Event::TaskCreate(ev)
+            | Event::TaskActivate(ev)
+            | Event::TaskPriority(ev)
+            | Event::TaskPriorityInherit(ev)
+            | Event::TaskPriorityDisinherit(ev) => {
+                attrs.insert(EventAttrKey::TaskName, ev.name.to_string().into());
+                attrs.insert(
+                    EventAttrKey::TaskPriority,
+                    AttrVal::Integer(u32::from(ev.priority).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+            }
+
+            Event::TaskNotify(ev)
+            | Event::TaskNotifyFromIsr(ev)
+            | Event::TaskNotifyWait(ev)
+            | Event::TaskNotifyWaitBlock(ev) => {
+                if let Some(name) = ev.task_name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::TaskName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        EventAttrKey::TicksToWait,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        EventAttrKey::NanosToWait,
+                        AttrVal::Timestamp(
+                            self.timestamp_info
+                                .timer_frequency
+                                .lossy_timestamp_ns(ticks_to_wait),
+                        ),
+                    );
+                }
+            }
+
+            Event::MemoryAlloc(ev) | Event::MemoryFree(ev) => {
+                attrs.insert(
+                    EventAttrKey::MemoryAddress,
+                    AttrVal::Integer(ev.address.into()),
+                );
+                attrs.insert(EventAttrKey::MemorySize, AttrVal::Integer(ev.size.into()));
+                attrs.insert(
+                    EventAttrKey::MemoryHeapCurrent,
+                    AttrVal::Integer(ev.heap.current.into()),
+                );
+                attrs.insert(
+                    EventAttrKey::MemoryHeapHighMark,
+                    AttrVal::Integer(ev.heap.high_water_mark.into()),
+                );
+                attrs.insert(
+                    EventAttrKey::MemoryHeapMax,
+                    AttrVal::Integer(ev.heap.max.into()),
+                );
+            }
+
+            Event::UnusedStack(ev) => {
+                attrs.insert(EventAttrKey::TaskName, ev.task.to_string().into());
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::StackLowMark,
+                    AttrVal::Integer(ev.low_mark.into()),
+                );
+            }
+
+            Event::QueueCreate(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::QueueName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::QueueLength,
+                    AttrVal::Integer(ev.queue_length.into()),
+                );
+            }
+
+            Event::QueueSend(ev)
+            | Event::QueueSendBlock(ev)
+            | Event::QueueSendFromIsr(ev)
+            | Event::QueueReceive(ev)
+            | Event::QueueReceiveBlock(ev)
+            | Event::QueueReceiveFromIsr(ev)
+            | Event::QueuePeek(ev)
+            | Event::QueuePeekBlock(ev)
+            | Event::QueueSendFront(ev)
+            | Event::QueueSendFrontBlock(ev)
+            | Event::QueueSendFrontFromIsr(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::QueueName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::QueueMessagesWaiting,
+                    AttrVal::Integer(ev.messages_waiting.into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        EventAttrKey::TicksToWait,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        EventAttrKey::NanosToWait,
+                        AttrVal::Timestamp(
+                            self.timestamp_info
+                                .timer_frequency
+                                .lossy_timestamp_ns(ticks_to_wait),
+                        ),
+                    );
+                }
+            }
+
+            Event::MutexCreate(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::MutexName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+            }
+
+            Event::MutexGive(ev)
+            | Event::MutexGiveBlock(ev)
+            | Event::MutexGiveRecursive(ev)
+            | Event::MutexTake(ev)
+            | Event::MutexTakeBlock(ev)
+            | Event::MutexTakeRecursive(ev)
+            | Event::MutexTakeRecursiveBlock(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::MutexName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        EventAttrKey::TicksToWait,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        EventAttrKey::NanosToWait,
+                        AttrVal::Timestamp(
+                            self.timestamp_info
+                                .timer_frequency
+                                .lossy_timestamp_ns(ticks_to_wait),
+                        ),
+                    );
+                }
+            }
+
+            Event::SemaphoreBinaryCreate(ev) | Event::SemaphoreCountingCreate(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::SemaphoreName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                if let Some(count) = ev.count {
+                    attrs.insert(EventAttrKey::SemaphoreCount, AttrVal::Integer(count.into()));
+                }
+            }
+
+            Event::SemaphoreGive(ev)
+            | Event::SemaphoreGiveBlock(ev)
+            | Event::SemaphoreGiveFromIsr(ev)
+            | Event::SemaphoreTake(ev)
+            | Event::SemaphoreTakeBlock(ev)
+            | Event::SemaphoreTakeFromIsr(ev)
+            | Event::SemaphorePeek(ev)
+            | Event::SemaphorePeekBlock(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::SemaphoreName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::SemaphoreCount,
+                    AttrVal::Integer(ev.count.into()),
+                );
+                if let Some(ticks_to_wait) = ev.ticks_to_wait {
+                    attrs.insert(
+                        EventAttrKey::TicksToWait,
+                        AttrVal::Integer(u32::from(ticks_to_wait).into()),
+                    );
+                    attrs.insert(
+                        EventAttrKey::NanosToWait,
+                        AttrVal::Timestamp(
+                            self.timestamp_info
+                                .timer_frequency
+                                .lossy_timestamp_ns(ticks_to_wait),
+                        ),
+                    );
+                }
+            }
+
+            Event::User(ev) => {
+                if cfg.user_event_channel {
+                    // Use the channel as the event name
+                    attrs.insert(EventAttrKey::Name, ev.channel.to_string().into());
+                } else if cfg.user_event_format_string {
+                    // Use the formatted string as the event name
+                    attrs.insert(EventAttrKey::Name, ev.formatted_string.to_string().into());
+                }
+
+                // Handle channel event name mappings
+                if let Some(name) = cfg.user_event_channel_rename_map.get(ev.channel.as_str()) {
+                    attrs.insert(EventAttrKey::Name, name.to_string().into());
+                } else if ev.channel.as_str() == "#WFR" {
+                    warn!(
+                        msg = %ev.formatted_string,
+                        "Target produced a warning on the '#WFR' channel"
+                    );
+                    attrs.insert(EventAttrKey::Name, "WARNING_FROM_RECORDER".into());
+                }
+
+                // Handle format string event name mappings
+                if let Some(name) = cfg
+                    .user_event_formatted_string_rename_map
+                    .get(ev.formatted_string.as_str())
+                {
+                    attrs.insert(EventAttrKey::Name, name.to_string().into());
+                }
+
+                attrs.insert(EventAttrKey::UserChannel, ev.channel.to_string().into());
+                attrs.insert(
+                    EventAttrKey::UserFormattedString,
+                    ev.formatted_string.to_string().into(),
+                );
+
+                let custom_arg_keys = cfg
+                    .user_event_fmt_arg_attr_keys
+                    .arg_attr_keys(ev.channel.as_str(), &ev.format_string);
+                if let Some(custom_arg_keys) = custom_arg_keys {
+                    if custom_arg_keys.len() != ev.args.len() {
+                        return Err(Error::FmtArgAttrKeysCountMismatch(
+                            ev.format_string.clone().into(),
+                            custom_arg_keys.to_vec(),
+                        ));
+                    }
+                }
+
+                for (idx, arg) in ev.args.iter().enumerate() {
+                    let key = if let Some(custom_arg_keys) = custom_arg_keys {
+                        // SAFETY: len checked above
+                        EventAttrKey::CustomUserArg(custom_arg_keys[idx].clone())
+                    } else {
+                        match idx {
+                            0 => EventAttrKey::UserArg0,
+                            1 => EventAttrKey::UserArg1,
+                            2 => EventAttrKey::UserArg2,
+                            3 => EventAttrKey::UserArg3,
+                            4 => EventAttrKey::UserArg4,
+                            5 => EventAttrKey::UserArg5,
+                            6 => EventAttrKey::UserArg6,
+                            7 => EventAttrKey::UserArg7,
+                            8 => EventAttrKey::UserArg8,
+                            9 => EventAttrKey::UserArg9,
+                            10 => EventAttrKey::UserArg10,
+                            11 => EventAttrKey::UserArg11,
+                            12 => EventAttrKey::UserArg12,
+                            13 => EventAttrKey::UserArg13,
+                            14 => EventAttrKey::UserArg14,
+                            _ => return Err(Error::ExceededMaxUserEventArgs),
+                        }
+                    };
+                    attrs.insert(key, arg_to_attr_val(arg));
+                }
+            }
+
+            Event::ObjectName(_) | Event::TsConfig(_) | Event::Unknown(_) => (),
+        }
+
+        Ok(())
+    }
+
+    fn add_core_timeline_attributes(
+        &self,
+        cfg: &PluginConfig,
         handle: ContextHandle,
-        startup_task_name: Option<&str>,
-    ) -> Result<TimelineDetails, Error> {
+        attrs: &mut TimelineAttributes,
+    ) -> Result<(), Error> {
         let obj_handle = handle.object_handle();
         let obj_class = self.entry_table.class(obj_handle);
         let obj_name = self.entry_table.symbol(obj_handle).map(|s| s.to_string());
@@ -135,7 +505,7 @@ impl RecorderDataExt for RecorderData {
                 );
 
                 let is_startup_task = name == STARTUP_TASK_NAME;
-                match startup_task_name {
+                match cfg.startup_task_name.as_ref() {
                     Some(startup_task_name) if is_startup_task => {
                         (startup_task_name.to_string(), desc)
                     }
@@ -155,154 +525,118 @@ impl RecorderDataExt for RecorderData {
             }
         };
 
-        Ok(TimelineDetails {
-            name_key: TimelineAttrKey::Name,
-            name,
-            description_key: TimelineAttrKey::Description,
-            description,
-            object_handle_key: TimelineAttrKey::ObjectHandle,
-            object_handle: obj_handle,
-        })
+        attrs.insert(TimelineAttrKey::Name, name.into());
+        attrs.insert(TimelineAttrKey::Description, description.into());
+        attrs.insert(TimelineAttrKey::ObjectHandle, u32::from(obj_handle).into());
+
+        Ok(())
     }
 
-    async fn setup_common_timeline_attrs(
+    fn common_timeline_attributes(
         &self,
         cfg: &TraceRecorderConfig,
-        client: &mut Client,
-    ) -> Result<HashMap<InternedAttrKey, AttrVal>, Error> {
-        let mut common_timeline_attr_kvs = HashMap::new();
+    ) -> Result<TimelineAttributes, Error> {
+        let mut attrs = HashMap::new();
         let run_id = cfg.plugin.run_id.unwrap_or_else(Uuid::new_v4);
         let time_domain = cfg.plugin.time_domain.unwrap_or_else(Uuid::new_v4);
         debug!(run_id = %run_id, time_domain = %time_domain);
 
         if let Some(r) = self.timestamp_info.timer_frequency.resolution_ns() {
             // Only have ns resolution if frequency is non-zero
-            let key = client.timeline_key(TimelineAttrKey::TimeResolution).await?;
-            common_timeline_attr_kvs.insert(key, r.into());
+            attrs.insert(TimelineAttrKey::TimeResolution, r.into());
         }
 
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::RunId).await?,
-            run_id.to_string().into(),
-        );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TimeDomain).await?,
-            time_domain.to_string().into(),
-        );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::ClockStyle).await?,
-            "relative".into(),
-        );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::Protocol).await?,
-            self.protocol.to_string().into(),
-        );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::KernelVersion).await?,
+        attrs.insert(TimelineAttrKey::RunId, run_id.to_string().into());
+        attrs.insert(TimelineAttrKey::TimeDomain, time_domain.to_string().into());
+        attrs.insert(TimelineAttrKey::ClockStyle, "relative".into());
+        attrs.insert(TimelineAttrKey::Protocol, self.protocol.to_string().into());
+        attrs.insert(
+            TimelineAttrKey::KernelVersion,
             self.header.kernel_version.to_string().into(),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::KernelPort).await?,
+        attrs.insert(
+            TimelineAttrKey::KernelPort,
             self.header.kernel_port.to_string().into(),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::Endianness).await?,
+        attrs.insert(
+            TimelineAttrKey::Endianness,
             self.header.endianness.to_string().into(),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::IrqPriorityOrder)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::IrqPriorityOrder,
             AttrVal::Integer(self.header.irq_priority_order.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::Frequency).await?,
+        attrs.insert(
+            TimelineAttrKey::Frequency,
             AttrVal::Integer(u32::from(self.timestamp_info.timer_frequency).into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::IsrChainingThreshold)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::IsrChainingThreshold,
             AttrVal::Integer(self.header.isr_tail_chaining_threshold.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::PluginVersion).await?,
-            PLUGIN_VERSION.into(),
-        );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::FormatVersion).await?,
+        attrs.insert(TimelineAttrKey::PluginVersion, PLUGIN_VERSION.into());
+        attrs.insert(
+            TimelineAttrKey::FormatVersion,
             AttrVal::Integer(self.header.format_version.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::NumCores).await?,
+        attrs.insert(
+            TimelineAttrKey::NumCores,
             AttrVal::Integer(self.header.num_cores.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::PlatformCfg).await?,
+        attrs.insert(
+            TimelineAttrKey::PlatformCfg,
             AttrVal::String(self.header.platform_cfg.clone().into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::PlatformCfgVersion)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::PlatformCfgVersion,
             AttrVal::String(self.header.platform_cfg_version.to_string().into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::PlatformCfgVersionMajor)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::PlatformCfgVersionMajor,
             AttrVal::Integer(self.header.platform_cfg_version.major.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::PlatformCfgVersionMinor)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::PlatformCfgVersionMinor,
             AttrVal::Integer(self.header.platform_cfg_version.minor.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::PlatformCfgVersionPatch)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::PlatformCfgVersionPatch,
             AttrVal::Integer(self.header.platform_cfg_version.patch.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::HeapSize).await?,
+        attrs.insert(
+            TimelineAttrKey::HeapSize,
             AttrVal::Integer(self.system_heap().max.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TimerType).await?,
+        attrs.insert(
+            TimelineAttrKey::TimerType,
             self.timestamp_info.timer_type.to_string().into(),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TimerFreq).await?,
+        attrs.insert(
+            TimelineAttrKey::TimerFreq,
             AttrVal::Integer(u32::from(self.timestamp_info.timer_frequency).into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TimerPeriod).await?,
+        attrs.insert(
+            TimelineAttrKey::TimerPeriod,
             AttrVal::Integer(self.timestamp_info.timer_period.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TimerWraps).await?,
+        attrs.insert(
+            TimelineAttrKey::TimerWraps,
             AttrVal::Integer(self.timestamp_info.timer_wraparounds.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TickRateHz).await?,
+        attrs.insert(
+            TimelineAttrKey::TickRateHz,
             AttrVal::Integer(u32::from(self.timestamp_info.os_tick_rate_hz).into()),
         );
-        common_timeline_attr_kvs.insert(
-            client.timeline_key(TimelineAttrKey::TickCount).await?,
+        attrs.insert(
+            TimelineAttrKey::TickCount,
             AttrVal::Integer(self.timestamp_info.os_tick_count.into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::LatestTimestampTicks)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::LatestTimestampTicks,
             BigInt::new_attr_val(self.timestamp_info.latest_timestamp.ticks().into()),
         );
-        common_timeline_attr_kvs.insert(
-            client
-                .timeline_key(TimelineAttrKey::LatestTimestamp)
-                .await?,
+        attrs.insert(
+            TimelineAttrKey::LatestTimestamp,
             self.timestamp_info
                 .timer_frequency
                 .lossy_timestamp_ns(self.timestamp_info.latest_timestamp)
@@ -313,41 +647,24 @@ impl RecorderDataExt for RecorderData {
             &cfg.ingest
                 .timeline_attributes
                 .additional_timeline_attributes,
-            client,
-            &mut common_timeline_attr_kvs,
-        )
-        .await?;
+            &mut attrs,
+        )?;
 
         merge_cfg_attributes(
             &cfg.ingest.timeline_attributes.override_timeline_attributes,
-            client,
-            &mut common_timeline_attr_kvs,
-        )
-        .await?;
+            &mut attrs,
+        )?;
 
-        Ok(common_timeline_attr_kvs)
+        Ok(attrs)
     }
 }
 
-async fn merge_cfg_attributes(
+pub(crate) fn merge_cfg_attributes(
     attrs_to_merge: &[AttrKeyEqValuePair],
-    client: &mut Client,
-    attrs: &mut HashMap<InternedAttrKey, AttrVal>,
+    attrs: &mut TimelineAttributes,
 ) -> Result<(), Error> {
     for kv in attrs_to_merge.iter() {
-        let fully_qualified_key = format!("timeline.{}", kv.0);
-        match client.remove_timeline_string_key(&fully_qualified_key) {
-            Some((prev_key, interned_key)) => {
-                client.add_timeline_key(prev_key, interned_key);
-                attrs.insert(interned_key, kv.1.clone());
-            }
-            None => {
-                let key = client
-                    .timeline_key(TimelineAttrKey::Custom(kv.0.to_string()))
-                    .await?;
-                attrs.insert(key, kv.1.clone());
-            }
-        }
+        attrs.insert(TimelineAttrKey::Custom(kv.0.to_string()), kv.1.clone());
     }
     Ok(())
 }
@@ -380,5 +697,19 @@ impl From<Option<ObjectClass>> for MaybeUnknownObjectClass {
             Some(c) => MaybeUnknownObjectClass::Known(c),
             None => MaybeUnknownObjectClass::Unknown,
         }
+    }
+}
+
+fn arg_to_attr_val(arg: &Argument) -> AttrVal {
+    match arg {
+        Argument::I8(v) => AttrVal::Integer(i64::from(*v)),
+        Argument::U8(v) => AttrVal::Integer(i64::from(*v)),
+        Argument::I16(v) => AttrVal::Integer(i64::from(*v)),
+        Argument::U16(v) => AttrVal::Integer(i64::from(*v)),
+        Argument::I32(v) => AttrVal::Integer(i64::from(*v)),
+        Argument::U32(v) => AttrVal::Integer(i64::from(*v)),
+        Argument::F32(v) => AttrVal::from(f64::from(v.0)),
+        Argument::F64(v) => AttrVal::from(v.0),
+        Argument::String(v) => AttrVal::String(v.clone().into()),
     }
 }

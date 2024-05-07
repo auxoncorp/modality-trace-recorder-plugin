@@ -64,7 +64,8 @@ impl ContextManager {
         registered_object_handles.insert(startup_task_handle);
         let mut client = Client::new(client.open_timeline(startup_task_timeline_id).await?);
 
-        let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
+        //let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
+        let common_timeline_attr_kvs = Default::default();
 
         let mut importer = ContextManager {
             single_task_timeline: cfg.plugin.single_task_timeline,
@@ -297,6 +298,7 @@ impl ContextManager {
         handle: ContextHandle,
         trd: &TR,
     ) -> Result<(), Error> {
+        /*
         let tl_details = trd.timeline_details(handle, self.startup_task_name.as_deref())?;
 
         let mut attr_kvs = self.common_timeline_attr_kvs.clone();
@@ -316,11 +318,13 @@ impl ContextManager {
         );
 
         self.client.inner().timeline_metadata(attr_kvs).await?;
+        */
 
         Ok(())
     }
 }
 
+/*
 pub(crate) fn arg_to_attr_val(arg: &Argument) -> AttrVal {
     match arg {
         Argument::I8(v) => AttrVal::Integer(i64::from(*v)),
@@ -334,3 +338,4 @@ pub(crate) fn arg_to_attr_val(arg: &Argument) -> AttrVal {
         Argument::String(v) => AttrVal::String(v.clone().into()),
     }
 }
+*/
