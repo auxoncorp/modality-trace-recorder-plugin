@@ -34,14 +34,6 @@ static void sensor_task(void* params)
     next_wake = xTaskGetTickCount();
     while(1)
     {
-        /* Intentionally trip an assert */
-        if(i == 256)
-        {
-            WARN("Going to assert");
-            vTaskDelay(UPDATE_PERIOD_MS*10);
-        }
-        configASSERT(i < 256);
-
         const BaseType_t was_delayed = xTaskDelayUntil(&next_wake, UPDATE_PERIOD_MS);
         if(was_delayed == pdFALSE)
         {
@@ -51,6 +43,13 @@ static void sensor_task(void* params)
         vTracePrintF(ch, "%d", adc_value);
         actuator_send_adc_data(adc_value);
         i += 1;
+
+        /* Shutdown the task */
+        if(i == 256)
+        {
+            WARN("Called vTaskSuspend");
+            vTaskSuspend(NULL);
+        }
     }
 }
 

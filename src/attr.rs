@@ -1,57 +1,8 @@
-use auxon_sdk::{
-    ingest_client::{BoundTimelineState, IngestClient, IngestError},
-    ingest_protocol::InternedAttrKey,
-};
+use auxon_sdk::ingest_protocol::InternedAttrKey;
 use derive_more::Display;
-use std::{collections::HashMap, fmt, hash::Hash};
+use std::collections::HashMap;
 
-pub trait AttrKeyIndex: Hash + Eq + Clone + fmt::Display {}
-
-#[derive(Clone, Debug)]
-pub struct AttrKeys<T: AttrKeyIndex>(HashMap<T, InternedAttrKey>);
-
-impl<T: AttrKeyIndex> Default for AttrKeys<T> {
-    fn default() -> Self {
-        Self(HashMap::new())
-    }
-}
-
-impl<T: AttrKeyIndex> AttrKeys<T> {
-    pub async fn get(
-        &mut self,
-        client: &mut IngestClient<BoundTimelineState>,
-        key: T,
-    ) -> Result<InternedAttrKey, IngestError> {
-        if let Some(k) = self.0.get(&key) {
-            Ok(*k)
-        } else {
-            let interned_key = client.declare_attr_key(key.to_string()).await?;
-            self.0.insert(key, interned_key);
-            Ok(interned_key)
-        }
-    }
-
-    pub(crate) fn remove_string_key_entry(&mut self, key: &str) -> Option<(T, InternedAttrKey)> {
-        self.0
-            .keys()
-            .find_map(|k| {
-                let k_str = k.to_string();
-                if k_str.as_str() == key {
-                    Some(k.clone())
-                } else {
-                    None
-                }
-            })
-            .and_then(|k| self.0.remove_entry(&k))
-    }
-
-    pub(crate) fn insert(&mut self, key: T, interned_key: InternedAttrKey) {
-        self.0.insert(key, interned_key);
-    }
-}
-
-impl AttrKeyIndex for TimelineAttrKey {}
-impl AttrKeyIndex for EventAttrKey {}
+pub type AttrKeys<T> = HashMap<T, InternedAttrKey>;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
 pub enum TimelineAttrKey {
@@ -133,8 +84,12 @@ pub enum EventAttrKey {
     Timestamp,
     #[display(fmt = "event.interaction.remote_timeline_id")]
     RemoteTimelineId,
-    #[display(fmt = "event.interaction.remote_timestamp")]
-    RemoteTimestamp,
+    #[display(fmt = "event.interaction.remote_nonce")]
+    RemoteNonce,
+    #[display(fmt = "event.internal.trace_recorder.nonce")]
+    InternalNonce,
+    #[display(fmt = "event.nonce")]
+    Nonce,
     #[display(fmt = "event.mutator.id")]
     MutatorId,
     #[display(fmt = "event.internal.trace_recorder.mutator.id")]

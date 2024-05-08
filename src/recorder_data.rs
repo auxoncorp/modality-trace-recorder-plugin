@@ -19,7 +19,7 @@ use trace_recorder_parser::{
     time::{Frequency, Timestamp},
     types::{Argument, ObjectClass, ObjectHandle, STARTUP_TASK_NAME, UNNAMED_OBJECT},
 };
-use tracing::{debug, warn};
+use tracing::{trace, warn};
 use uuid::Uuid;
 
 pub trait NanosecondsExt {
@@ -62,14 +62,14 @@ impl ContextHandle {
     }
 }
 
-impl From<TaskEvent> for ContextHandle {
-    fn from(event: TaskEvent) -> Self {
+impl From<&TaskEvent> for ContextHandle {
+    fn from(event: &TaskEvent) -> Self {
         ContextHandle::Task(event.handle)
     }
 }
 
-impl From<IsrEvent> for ContextHandle {
-    fn from(event: IsrEvent) -> Self {
+impl From<&IsrEvent> for ContextHandle {
+    fn from(event: &IsrEvent) -> Self {
         ContextHandle::Isr(event.handle)
     }
 }
@@ -98,10 +98,7 @@ pub trait RecorderDataExt {
         attrs: &mut TimelineAttributes,
     ) -> Result<(), Error>;
 
-    fn common_timeline_attributes(
-        &self,
-        cfg: &TraceRecorderConfig,
-    ) -> Result<TimelineAttributes, Error>;
+    fn common_timeline_attributes(&self, cfg: &TraceRecorderConfig) -> TimelineAttributes;
 }
 
 #[async_trait]
@@ -532,14 +529,11 @@ impl RecorderDataExt for RecorderData {
         Ok(())
     }
 
-    fn common_timeline_attributes(
-        &self,
-        cfg: &TraceRecorderConfig,
-    ) -> Result<TimelineAttributes, Error> {
+    fn common_timeline_attributes(&self, cfg: &TraceRecorderConfig) -> TimelineAttributes {
         let mut attrs = HashMap::new();
         let run_id = cfg.plugin.run_id.unwrap_or_else(Uuid::new_v4);
         let time_domain = cfg.plugin.time_domain.unwrap_or_else(Uuid::new_v4);
-        debug!(run_id = %run_id, time_domain = %time_domain);
+        trace!(run_id = %run_id, time_domain = %time_domain);
 
         if let Some(r) = self.timestamp_info.timer_frequency.resolution_ns() {
             // Only have ns resolution if frequency is non-zero
@@ -648,25 +642,24 @@ impl RecorderDataExt for RecorderData {
                 .timeline_attributes
                 .additional_timeline_attributes,
             &mut attrs,
-        )?;
+        );
 
         merge_cfg_attributes(
             &cfg.ingest.timeline_attributes.override_timeline_attributes,
             &mut attrs,
-        )?;
+        );
 
-        Ok(attrs)
+        attrs
     }
 }
 
 pub(crate) fn merge_cfg_attributes(
     attrs_to_merge: &[AttrKeyEqValuePair],
     attrs: &mut TimelineAttributes,
-) -> Result<(), Error> {
+) {
     for kv in attrs_to_merge.iter() {
         attrs.insert(TimelineAttrKey::Custom(kv.0.to_string()), kv.1.clone());
     }
-    Ok(())
 }
 
 fn object_name(name: String, class: MaybeUnknownObjectClass, handle: ObjectHandle) -> String {

@@ -1,8 +1,7 @@
-pub use attr::{AttrKeyIndex, AttrKeys, EventAttrKey, TimelineAttrKey};
+pub use attr::{AttrKeys, EventAttrKey, TimelineAttrKey};
 pub use client::Client;
 pub use command::Command;
 pub use config::{TraceRecorderConfig, TraceRecorderConfigEntry};
-pub use context_manager::ContextSwitchOutcome;
 pub use error::Error;
 pub use interruptor::Interruptor;
 pub use opts::{
@@ -18,7 +17,6 @@ pub mod client;
 pub mod command;
 pub mod config;
 pub mod context_manager;
-pub mod context_manager_new;
 pub mod deviant_event_parser;
 pub mod error;
 pub mod interruptor;
