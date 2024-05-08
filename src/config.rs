@@ -1,7 +1,7 @@
 use crate::{
     error::AuthTokenError,
     opts::{
-        FormatArgAttributeKeysSet, IgnoredObjectClasses, ReflectorOpts, RenameMap,
+        FormatArgAttributeKeysSet, IgnoredObjectClasses, InteractionMode, ReflectorOpts, RenameMap,
         TraceRecorderOpts,
     },
 };
@@ -50,6 +50,7 @@ pub struct PluginConfig {
     pub user_event_channel_rename_map: RenameMap,
     pub user_event_formatted_string_rename_map: RenameMap,
     pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
+    pub interaction_mode: InteractionMode,
 
     pub import: ImportConfig,
     pub tcp_collector: TcpCollectorConfig,
@@ -309,6 +310,11 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.user_event_fmt_arg_attr_keys
             },
+            interaction_mode: if let Some(m) = tr_opts.interaction_mode {
+                m
+            } else {
+                cfg_plugin.interaction_mode
+            },
             import: cfg_plugin.import,
             tcp_collector: cfg_plugin.tcp_collector,
             itm_collector: cfg_plugin.itm_collector,
@@ -365,6 +371,7 @@ mod internal {
         #[serde(rename = "user-event-formatted-string-name")]
         pub user_event_formatted_string_rename_map: RenameMap,
         pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
+        pub interaction_mode: InteractionMode,
     }
 
     impl From<CommonPluginConfig> for PluginConfig {
@@ -385,6 +392,7 @@ mod internal {
                 user_event_channel_rename_map: c.user_event_channel_rename_map,
                 user_event_formatted_string_rename_map: c.user_event_formatted_string_rename_map,
                 user_event_fmt_arg_attr_keys: c.user_event_fmt_arg_attr_keys,
+                interaction_mode: c.interaction_mode,
                 import: Default::default(),
                 tcp_collector: Default::default(),
                 itm_collector: Default::default(),
@@ -532,6 +540,7 @@ time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1'
 startup-task-name = 'm3'
 user-event-channel = true
 user-event-format-string = true
+interaction-mode = "ipc"
 single-task-timeline = true
 flatten-isr-timelines = true
 disable-task-interactions = true
@@ -569,6 +578,7 @@ user-event-channel = true
 user-event-format-string = true
 single-task-timeline = true
 flatten-isr-timelines = true
+interaction-mode = "ipc"
 include-unknown-events = true
 disable-task-interactions = true
 disable-control-plane = true
@@ -609,6 +619,7 @@ single-task-timeline = true
 flatten-isr-timelines = true
 disable-control-plane = true
 use-timeline-id-channel = true
+interaction-mode = "fully-linearized"
 include-unknown-events = true
 disable-task-interactions = true
 ignored-object-classes = ['queue', 'Semaphore']
@@ -663,6 +674,7 @@ flatten-isr-timelines = true
 disable-control-plane = true
 use-timeline-id-channel = true
 disable-task-interactions = true
+interaction-mode = "ipc"
 ignored-object-classes = ['queue', 'Semaphore']
 attach-timeout = "100ms"
 restart = true
@@ -790,6 +802,7 @@ metrics = true
                     }]
                     .into_iter()
                     .collect(),
+                    interaction_mode: InteractionMode::Ipc,
                     import: ImportConfig {
                         protocol: None,
                         file: PathBuf::from("/path/to/memdump.bin").into(),
@@ -886,6 +899,7 @@ metrics = true
                     }]
                     .into_iter()
                     .collect(),
+                    interaction_mode: InteractionMode::Ipc,
                     import: Default::default(),
                     tcp_collector: TcpCollectorConfig {
                         disable_control_plane: true,
@@ -986,6 +1000,7 @@ metrics = true
                     }]
                     .into_iter()
                     .collect(),
+                    interaction_mode: InteractionMode::FullyLinearized,
                     import: Default::default(),
                     tcp_collector: Default::default(),
                     itm_collector: ItmCollectorConfig {
@@ -1097,6 +1112,7 @@ metrics = true
                     }]
                     .into_iter()
                     .collect(),
+                    interaction_mode: InteractionMode::Ipc,
                     import: Default::default(),
                     tcp_collector: Default::default(),
                     itm_collector: Default::default(),

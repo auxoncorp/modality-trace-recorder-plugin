@@ -6,7 +6,7 @@ on:
       package_channel:
         description: 'Modality package channel (stable/nightly)'
         required: true
-        default: 'nightly'
+        default: 'stable'
         type: choice
         options:
         - stable
@@ -44,7 +44,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.AUXON_GHCR_TOKEN }}
+          password: ${{ secrets.AUXON_GHCR_TOKEN_RO }}
 
       - name: Install system packages
         run: |
@@ -80,9 +80,9 @@ jobs:
 
       - name: Start Modality server
         run: |
-          image="ghcr.io/auxoncorp/modalityd-nightly:latest"
-          if [ "${{inputs.package_channel}}" == "stable" ]; then
-            image="ghcr.io/auxoncorp/modalityd:latest"
+          image="ghcr.io/auxoncorp/modalityd:latest"
+          if [ "${{inputs.package_channel}}" == "nightly" ]; then
+            image="ghcr.io/auxoncorp/modalityd-nightly:latest"
           fi
           mkdir -p modalityd_data
           docker run \
@@ -93,7 +93,7 @@ jobs:
             -e MODALITY_LICENSE_KEY="${{secrets.MODALITY_LICENSE_KEY}}" \
             -e NO_TLS=Y \
             -d --rm \
-            ghcr.io/auxoncorp/modalityd-nightly:latest
+            ${image}
 
           curl --retry-max-time 30 --retry 10 --retry-connrefused ${{env.MODALITY_URL}}/alive
           docker logs modalityd
@@ -129,9 +129,9 @@ jobs:
       - name: Start Modality Reflector
         working-directory: test_system
         run: |
-          image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
-          if [ "${{inputs.package_channel}}" == "stable" ]; then
-            image="ghcr.io/auxoncorp/modality-reflector:latest"
+          image="ghcr.io/auxoncorp/modality-reflector:latest"
+          if [ "${{inputs.package_channel}}" == "nightly" ]; then
+            image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
           fi
           docker run \
             --name reflector \
@@ -172,9 +172,9 @@ jobs:
       - name: Import RTT data
         working-directory: test_system
         run: |
-          image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
-          if [ "${{github.event.inputs.package_channel}}" == "stable" ]; then
-            image="ghcr.io/auxoncorp/modality-reflector:latest"
+          image="ghcr.io/auxoncorp/modality-reflector:latest"
+          if [ "${{github.event.inputs.package_channel}}" == "nightly" ]; then
+            image="ghcr.io/auxoncorp/modality-reflector-nightly:latest"
           fi
           docker run \
             --name reflector \

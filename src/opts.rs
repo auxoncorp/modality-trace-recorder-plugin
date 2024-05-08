@@ -210,6 +210,18 @@ pub struct TraceRecorderOpts {
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub include_unknown_events: bool,
+
+    /// Interaction mode to use.
+    ///
+    /// * fully-linearized
+    /// * ipc
+    #[clap(
+        long,
+        verbatim_doc_comment,
+        name = "interaction-mode",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub interaction_mode: Option<InteractionMode>,
 }
 
 /// A map of trace recorder USER_EVENT channels/format-strings to Modality event names
@@ -365,6 +377,27 @@ impl FromIterator<ObjectClass> for IgnoredObjectClasses {
 impl IgnoredObjectClasses {
     pub fn contains(&self, c: ObjectClass) -> bool {
         self.0.contains(&IgnoredObjectClass(c))
+    }
+}
+
+#[derive(
+    Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Default, serde_with::DeserializeFromStr,
+)]
+pub enum InteractionMode {
+    #[default]
+    FullyLinearized,
+    Ipc,
+}
+
+impl FromStr for InteractionMode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s.trim().to_lowercase().as_str() {
+            "fully-linearized" => InteractionMode::FullyLinearized,
+            "ipc" => InteractionMode::Ipc,
+            _ => return Err(format!("Invalid interaction mode '{}'", s)),
+        })
     }
 }
 

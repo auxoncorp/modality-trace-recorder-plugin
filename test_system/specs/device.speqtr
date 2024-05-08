@@ -25,17 +25,6 @@ behavior "Heap Usage"
     end
 end
 
-# @type = "scheduler"
-behavior "Task Activation Time"
-    prohibited case "ready tasks are activated within 20 ms"
-        TASK_READY @ * (_.task != "IDLE" AND _.task != "TzCtrl" AND _.timeline.name != "init") as ready
-            FOLLOWED BY
-        TASK_ACTIVATE @ * (_.timeline.name = ready.task) AS activated
-            AND
-        (activated.timestamp - ready.timestamp) > 20ms
-    end
-end
-
 # @type = "error logs"
 behavior "No Errors or dropped events"
     prohibited case "no error messages exist"

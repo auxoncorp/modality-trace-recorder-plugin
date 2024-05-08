@@ -120,6 +120,18 @@ Result 2:
 ║               timestamp = +2.684145s
 ```
 
+### Interaction Modes
+
+The plugins can be configured for different interaction modes via the `interaction-mode` field (or `--interaction-mode` at the CLI).
+
+Available modes:
+* `fully-linearized`: An interaction is produced on every context switch event from the preceding task/ISR context to the
+  active task/ISR context. This effectively linearizes the system execution where everything is causally connected.
+* `ipc`: An interaction is produced for each task/ISR IPC.
+   Currently this supports the following object kinds:
+  - queue
+  - task notification
+
 ## Configuration
 
 All of the plugins can be configured through a TOML configuration file (from either the `--config` option or the `MODALITY_REFLECTOR_CONFIG` environment variable).
@@ -141,6 +153,7 @@ These sections are the same for each of the plugins.
 * `[metadata]` — Plugin configuration table.
   - `run-id` — Use the provided UUID as the run ID instead of generating a random one.
   - `time-domain` — Use the provided UUID as the time domain ID instead of generating a random one.
+  - `interaction-mode` — Interaction mode to use (`fully-linearized` or `ipc`). The default value is `fully-linearized`.
   - `startup-task-name` — Use the provided initial startup task name instead of the default (`(startup)`).
   - `single-task-timeline` — Use a single timeline for all tasks instead of a timeline per task. ISRs can still be represented with their own timelines or not.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
@@ -241,7 +254,7 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-it
     These are used to start and stop tracing by writing control plane commands from the probe.
   - `command-len-addr` — Use the provided memory address for the ITM streaming port variable `tz_host_command_bytes_to_read`.
     These are used to start and stop tracing by writing control plane commands from the probe.
-  - `stimulus-port` — The ITM stimulus port used for trace recorder data.The default value is 1.
+  - `stimulus-port` — The ITM stimulus port used for trace recorder data. The default value is 1.
   - `probe-selector` — Select a specific probe instead of opening the first available one.
   - `chip` — The target chip to attach to (e.g. `STM32F407VE`).
   - `protocol` — Protocol used to connect to chip. Possible options: [`swd`, `jtag`]. The default value is `swd`.

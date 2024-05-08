@@ -1,4 +1,3 @@
-use auxon_sdk::ingest_client::{IngestClientInitializationError, IngestError};
 use std::io;
 use trace_recorder_parser::types::{
     KernelPortIdentity, ObjectHandle, UserEventArgRecordCount, STARTUP_TASK_NAME,
@@ -40,10 +39,13 @@ pub enum Error {
     DeviantEvent(String),
 
     #[error("Encountered an ingest client initialization error. {0}")]
-    IngestClientInitialization(#[from] IngestClientInitializationError),
+    IngestClientInitialization(#[from] auxon_sdk::ingest_client::IngestClientInitializationError),
 
     #[error("Encountered an ingest client error. {0}")]
-    Ingest(#[from] IngestError),
+    Ingest(#[from] auxon_sdk::ingest_client::IngestError),
+
+    #[error("Encountered an ingest client error. {0}")]
+    DynamicIngest(#[from] auxon_sdk::ingest_client::dynamic::DynamicIngestError),
 
     #[error(transparent)]
     Auth(#[from] AuthTokenError),

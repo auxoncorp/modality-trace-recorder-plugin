@@ -1,336 +1,554 @@
 use crate::{
     attr::EventAttrKey,
-    client::Client,
     config::TraceRecorderConfig,
+    deviant_event_parser::DeviantEventParser,
     error::Error,
-    recorder_data::{ContextHandle, RecorderDataExt},
+    opts::InteractionMode,
+    recorder_data::{
+        ContextHandle, EventAttributes, NanosecondsExt, RecorderDataExt, TimelineAttributes,
+    },
 };
-use auxon_sdk::{
-    api::{AttrVal, TimelineId},
-    ingest_client::{IngestClient, ReadyState},
-    ingest_protocol::InternedAttrKey,
-};
-use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
+use auxon_sdk::api::{AttrVal, BigInt, TimelineId};
+use std::collections::{HashMap, VecDeque};
 use trace_recorder_parser::{
-    time::Timestamp,
-    types::{Argument, FormatString, FormattedString, ObjectHandle, UserEventChannel},
+    streaming::event::{Event, EventCode, EventType, TrackingEventCounter},
+    streaming::RecorderData,
+    time::StreamingInstant,
+    types::ObjectHandle,
 };
-use tracing::warn;
-use uuid::Uuid;
+use tracing::{debug, trace, warn};
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum ContextSwitchOutcome {
-    /// Current task/ISR is already marked as active, we're on the same timeline
-    Same,
-    /// Switched to a new task/ISR, return the remote (previous) timeline ID and
-    /// the last event timestamped logged on the previous timeline
-    Different(TimelineId, Timestamp),
+#[derive(Debug)]
+pub struct ContextEvent {
+    pub context: ObjectHandle,
+    pub global_ordering: u128,
+    pub attributes: EventAttributes,
+    // In fully-linearized interaction mode, every event has a nonce.
+    // When true, this event contains an interaction from the previous
+    // event and the previous event's nonce should be visible in
+    // the conventional attribute key.
+    pub add_previous_event_nonce: bool,
 }
 
-const TIMELINE_ID_CHANNEL_NAME: &str = "modality_timeline_id";
-const TIMELINE_ID_FORMAT_STRING: &str = "name=%s,id=%s";
+#[derive(Debug)]
+pub struct TimelineMeta {
+    id: TimelineId,
+    attributes: TimelineAttributes,
+    /// The nonce recorded on the last event.
+    /// Effectively a timeline-local event counter so we can draw arbitrary interactions
+    nonce: InteractionNonce,
+}
 
-pub(crate) struct ContextManager {
-    single_task_timeline: bool,
-    flatten_isr_timelines: bool,
-    use_timeline_id_channel: bool,
-    startup_task_name: Option<String>,
+#[derive(Debug)]
+pub struct ContextManager {
+    cfg: TraceRecorderConfig,
+    common_timeline_attributes: TimelineAttributes,
 
-    // Used to track interactions between tasks/ISRs
+    global_ordering: u128,
+    time_rollover_tracker: StreamingInstant,
+    event_counter_tracker: TrackingEventCounter,
+
+    degraded: bool,
+    first_event_observed: bool,
+    deviant_event_parser: Option<DeviantEventParser>,
+    objects_to_timelines: HashMap<ObjectHandle, TimelineMeta>,
     startup_task_handle: ObjectHandle,
-    handle_of_last_logged_context: ContextHandle,
-    timestamp_of_last_event: Timestamp,
-    object_to_timeline_ids: HashMap<ObjectHandle, TimelineId>,
-    registered_object_handles: HashSet<ObjectHandle>,
 
-    common_timeline_attr_kvs: HashMap<InternedAttrKey, AttrVal>,
-    client: Client,
+    // State for interaction modes
+    active_context: ContextHandle,
+    notif_pending_interactions: HashMap<DestinationContextHandle, Interaction>,
+    queue_pending_interactions: HashMap<QueueHandle, VecDeque<Interaction>>,
 }
 
 impl ContextManager {
-    pub(crate) async fn begin<TR: RecorderDataExt>(
-        client: IngestClient<ReadyState>,
-        cfg: TraceRecorderConfig,
-        trd: &TR,
-    ) -> Result<Self, Error> {
+    const UNKNOWN_CONTEXT: &'static str = "UNKNOWN_CONTEXT";
+
+    pub fn new(mut cfg: TraceRecorderConfig, trd: &RecorderData) -> Result<Self, Error> {
+        if cfg.plugin.interaction_mode != InteractionMode::FullyLinearized {
+            if cfg.plugin.single_task_timeline {
+                warn!(interaction_mode = ?cfg.plugin.interaction_mode,
+                    "Configuration 'single-task-timeline' is ignored by the current interaction mode");
+                cfg.plugin.single_task_timeline = false;
+            }
+            if cfg.plugin.flatten_isr_timelines {
+                warn!(interaction_mode = ?cfg.plugin.interaction_mode,
+                    "Configuration 'flatten-isr-timelines' is ignored by the current interaction mode");
+                cfg.plugin.flatten_isr_timelines = false;
+            }
+        }
+
         let startup_task_handle = trd.startup_task_handle()?;
 
-        // Setup the root startup task timeline
-        let startup_task_timeline_id = TimelineId::allocate();
-        let mut object_to_timeline_ids = HashMap::new();
-        object_to_timeline_ids.insert(startup_task_handle, startup_task_timeline_id);
-        let mut registered_object_handles = HashSet::new();
-        registered_object_handles.insert(startup_task_handle);
-        let mut client = Client::new(client.open_timeline(startup_task_timeline_id).await?);
+        let deviant_event_parser = if let Some(base_event_id) = cfg.plugin.deviant_event_id_base {
+            Some(DeviantEventParser::new(
+                trd.header.endianness,
+                base_event_id.into(),
+            )?)
+        } else {
+            None
+        };
 
-        let common_timeline_attr_kvs = trd.setup_common_timeline_attrs(&cfg, &mut client).await?;
-
-        let mut importer = ContextManager {
-            single_task_timeline: cfg.plugin.single_task_timeline,
-            flatten_isr_timelines: cfg.plugin.flatten_isr_timelines,
-            use_timeline_id_channel: cfg.plugin.use_timeline_id_channel,
-            startup_task_name: cfg.plugin.startup_task_name,
+        let common_timeline_attributes = trd.common_timeline_attributes(&cfg);
+        Ok(Self {
+            cfg,
+            common_timeline_attributes,
+            global_ordering: 0,
+            time_rollover_tracker: StreamingInstant::zero(),
+            event_counter_tracker: TrackingEventCounter::zero(),
+            degraded: false,
+            first_event_observed: false,
+            deviant_event_parser,
+            objects_to_timelines: Default::default(),
             startup_task_handle,
-            handle_of_last_logged_context: ContextHandle::Task(startup_task_handle),
-            timestamp_of_last_event: Timestamp::zero(),
-            object_to_timeline_ids,
-            registered_object_handles,
-            common_timeline_attr_kvs,
-            client,
-        };
-
-        // Add root startup task timeline metadata
-        importer
-            .add_timeline_metadata(importer.handle_of_last_logged_context, trd)
-            .await?;
-
-        Ok(importer)
+            active_context: ContextHandle::Task(startup_task_handle),
+            notif_pending_interactions: Default::default(),
+            queue_pending_interactions: Default::default(),
+        })
     }
 
-    pub(crate) async fn end(self) -> Result<(), Error> {
-        self.client.close().await?;
-        Ok(())
+    pub fn timeline_meta(&self, handle: ObjectHandle) -> Result<&TimelineMeta, Error> {
+        self.objects_to_timelines
+            .get(&handle)
+            .ok_or(Error::TaskTimelineLookup(handle))
     }
 
-    pub(crate) fn set_degraded_single_timeline_mode(&mut self) {
-        self.single_task_timeline = true;
-        self.flatten_isr_timelines = true;
-        self.handle_of_last_logged_context = ContextHandle::Task(self.startup_task_handle);
+    pub fn observe_trace_restart(&mut self) {
+        self.first_event_observed = false;
     }
 
-    pub(crate) fn handle_device_timeline_id_channel_event<TR: RecorderDataExt>(
+    pub fn set_degraded<S: ToString>(&mut self, reason: S) {
+        if !self.degraded {
+            warn!(
+                reason = reason.to_string(),
+                "Downgrading to single timeline mode"
+            );
+            self.cfg.plugin.interaction_mode = InteractionMode::FullyLinearized;
+            self.cfg.plugin.single_task_timeline = true;
+            self.cfg.plugin.flatten_isr_timelines = true;
+            self.cfg.plugin.startup_task_name = Some(Self::UNKNOWN_CONTEXT.to_owned());
+            self.active_context = ContextHandle::Task(self.startup_task_handle);
+            // TODO - see if this works
+        }
+    }
+
+    pub fn process_event(
         &mut self,
-        channel: &UserEventChannel,
-        format_string: &FormatString,
-        formatted_string: &FormattedString,
-        args: &[Argument],
-        trd: &TR,
-    ) {
-        if !self.use_timeline_id_channel || channel.as_str() != TIMELINE_ID_CHANNEL_NAME {
-            return;
-        }
+        event_code: EventCode,
+        event: &Event,
+        trd: &RecorderData,
+    ) -> Result<Option<ContextEvent>, Error> {
+        // NOTE: We get events in logical (and tomporal) order, so only need
+        // a local counter for ordering
+        self.global_ordering = self.global_ordering.saturating_add(1);
 
-        if format_string.as_str() != TIMELINE_ID_FORMAT_STRING {
-            warn!(
-                "Invalid format string '{}' on the channel '{TIMELINE_ID_CHANNEL_NAME}'",
-                format_string
-            );
-            return;
-        }
+        let event_type = event_code.event_type();
 
-        if args.len() != 2 {
-            warn!(
-                "Invalid argument length in '{}' on channel '{TIMELINE_ID_CHANNEL_NAME}'",
-                formatted_string
-            );
-            return;
-        }
-
-        let obj_name = match &args[0] {
-            Argument::String(s) => s.as_str(),
-            _ => {
-                warn!(
-                    "Invalid argument[0] type in '{}' on channel '{TIMELINE_ID_CHANNEL_NAME}'",
-                    formatted_string
-                );
-                return;
+        let dropped_events = if !self.first_event_observed {
+            if event_type != EventType::TraceStart {
+                self.set_degraded(format!(
+                    "First event should be TRACE_START (got {})",
+                    event_type
+                ));
             }
+
+            // Setup initial root/startup task
+            self.active_context = ContextHandle::Task(self.startup_task_handle);
+            self.alloc_context(self.active_context, trd)?;
+
+            self.event_counter_tracker
+                .set_initial_count(event.event_count());
+            self.first_event_observed = true;
+            None
+        } else {
+            self.event_counter_tracker.update(event.event_count())
         };
 
-        let obj_handle = match trd.object_handle(obj_name) {
-            Some(h) => h,
-            None => {
-                warn!(
-                    "Object with name '{obj_name}' has not be registered yet, ignoring timeline-id"
-                );
-                return;
-            }
-        };
+        // Update timer/counter rollover trackers
+        let event_count_raw = u16::from(event.event_count());
+        let event_count = self.event_counter_tracker.count();
+        let timer_ticks = event.timestamp();
+        let timestamp = self.time_rollover_tracker.elapsed(timer_ticks);
 
-        if self.object_to_timeline_ids.contains_key(&obj_handle) {
-            warn!(
-                    "Object with name '{obj_name}' already has a timeline-id, ignoring provided timeline-id"
-                );
-            return;
-        }
+        let mut attrs: EventAttributes = Default::default();
 
-        let timeline_id = match &args[1] {
-            Argument::String(s) => match Uuid::parse_str(s.as_str()) {
-                Ok(id) => TimelineId::from(id),
-                Err(e) => {
-                    warn!("The provided timeline-id '{s}' is invalid. {e}");
-                    return;
+        // Skip events that are not relevant or are not expected
+        match event {
+            Event::ObjectName(_) | Event::TsConfig(_) => return Ok(None),
+            Event::Unknown(ev) => {
+                // Handle custom deviant events
+                let maybe_dev = if let Some(p) = self.deviant_event_parser.as_mut() {
+                    p.parse(ev)?
+                } else {
+                    None
+                };
+
+                if let Some(dev) = maybe_dev {
+                    attrs.insert(EventAttrKey::Name, dev.kind.to_modality_name().into());
+                    attrs.insert(EventAttrKey::MutatorId, dev.mutator_id.1);
+                    attrs.insert(
+                        EventAttrKey::InternalMutatorId,
+                        dev.mutator_id.0.to_string().into(),
+                    );
+                    if let Some(m) = dev.mutation_id {
+                        attrs.insert(EventAttrKey::MutationId, m.1);
+                        attrs.insert(EventAttrKey::InternalMutationId, m.0.to_string().into());
+                    }
+                    if let Some(s) = dev.mutation_success {
+                        attrs.insert(EventAttrKey::MutationSuccess, s);
+                    }
+                } else if !self.cfg.plugin.include_unknown_events {
+                    debug!(
+                          %event_type,
+                          timestamp = %ev.timestamp,
+                          id = %ev.code.event_id(),
+                          event_count = %ev.event_count, "Skipping unknown");
+                    return Ok(None);
                 }
-            },
-            _ => {
-                warn!(
-                    "Invalid argument[1] type in '{}' on channel '{TIMELINE_ID_CHANNEL_NAME}'",
-                    formatted_string
-                );
-                return;
             }
-        };
-
-        self.object_to_timeline_ids.insert(obj_handle, timeline_id);
-    }
-
-    pub(crate) async fn event_key(&mut self, key: EventAttrKey) -> Result<InternedAttrKey, Error> {
-        let k = self.client.event_key(key).await?;
-        Ok(k)
-    }
-
-    pub(crate) async fn event(
-        &mut self,
-        timestamp: Timestamp,
-        ordering: u128,
-        attrs: impl IntoIterator<Item = (InternedAttrKey, AttrVal)>,
-    ) -> Result<(), Error> {
-        if timestamp < self.timestamp_of_last_event {
-            warn!(
-                "Time went backwards from {} to {}",
-                self.timestamp_of_last_event, timestamp
-            );
+            _ => (),
         }
 
-        // Keep track of this for interaction remote timestamp on next task switch
-        self.timestamp_of_last_event = timestamp;
+        // Add core attr set
+        trd.add_core_event_attributes(&self.cfg.plugin, event_code, event, &mut attrs)?;
 
-        self.client.inner().event(ordering, attrs).await?;
+        // Add event counter attrs
+        attrs.insert(EventAttrKey::EventCountRaw, event_count_raw.into());
+        attrs.insert(EventAttrKey::EventCount, event_count.into());
+        if let Some(dropped_events) = dropped_events {
+            warn!(
+                event_count = event_count_raw,
+                dropped_events, "Dropped events detected"
+            );
 
-        Ok(())
+            attrs.insert(EventAttrKey::DroppedEvents, dropped_events.into());
+        }
+
+        // Add timerstamp attrs
+        attrs.insert(
+            EventAttrKey::TimerTicks,
+            BigInt::new_attr_val(timer_ticks.ticks().into()),
+        );
+        attrs.insert(
+            EventAttrKey::TimestampTicks,
+            BigInt::new_attr_val(timestamp.ticks().into()),
+        );
+        attrs.insert(
+            EventAttrKey::Timestamp,
+            AttrVal::Timestamp(
+                trd.timestamp_info
+                    .timer_frequency
+                    .lossy_timestamp_ns(timestamp),
+            ),
+        );
+
+        // Handle interaction mode specifics
+        match self.cfg.plugin.interaction_mode {
+            InteractionMode::FullyLinearized => {
+                Ok(Some(self.process_fully_linearized_mode(attrs, event, trd)?))
+            }
+            InteractionMode::Ipc => Ok(Some(self.process_ipc_mode(attrs, event, trd)?)),
+        }
+    }
+
+    fn process_fully_linearized_mode(
+        &mut self,
+        attrs: EventAttributes,
+        event: &Event,
+        trd: &RecorderData,
+    ) -> Result<ContextEvent, Error> {
+        let ctx_switch_outcome = self.handle_context_switch(event, trd)?;
+
+        let mut ctx_event = ContextEvent {
+            context: self.active_context.object_handle(),
+            global_ordering: self.global_ordering,
+            attributes: attrs,
+            add_previous_event_nonce: false,
+        };
+
+        match ctx_switch_outcome {
+            ContextSwitchOutcome::Same => {
+                // Normal event on the active context
+            }
+            ContextSwitchOutcome::Different(prev_context) => {
+                // Context switch event
+                ctx_event.add_previous_event_nonce = true;
+                let prev_timeline = self.timeline_mut(prev_context)?;
+                let interaction_src = prev_timeline.interaction_source();
+                ctx_event.add_interaction(interaction_src);
+            }
+        }
+
+        let timeline = self.timeline_mut(self.active_context)?;
+        timeline.increment_nonce();
+        ctx_event.add_internal_nonce(timeline.nonce);
+
+        Ok(ctx_event)
+    }
+
+    fn process_ipc_mode(
+        &mut self,
+        attrs: EventAttributes,
+        event: &Event,
+        trd: &RecorderData,
+    ) -> Result<ContextEvent, Error> {
+        let _ctx_switch_outcome = self.handle_context_switch(event, trd)?;
+
+        let mut ctx_event = ContextEvent {
+            context: self.active_context.object_handle(),
+            global_ordering: self.global_ordering,
+            attributes: attrs,
+            add_previous_event_nonce: false,
+        };
+
+        let timeline = self.timeline_mut(self.active_context)?;
+        timeline.increment_nonce();
+        ctx_event.add_internal_nonce(timeline.nonce);
+
+        match event {
+            Event::TaskNotify(ev) | Event::TaskNotifyFromIsr(ev) => {
+                // Record the interaction source (sender task)
+                ctx_event.promote_internal_nonce();
+                let handle_of_task_to_notify = ev.handle;
+                let interaction_src = timeline.interaction_source();
+                // NOTE: for task notifications, only the immediately preceding sender (most recent)
+                // is captured
+                let _maybe_overwritten_pending_interaction = self
+                    .notif_pending_interactions
+                    .insert(handle_of_task_to_notify, interaction_src);
+            }
+            Event::TaskNotifyWait(ev) => {
+                // Add any pending remote interaction (recvr task)
+                if ev.handle != self.active_context.object_handle() {
+                    warn!(
+                        notif_wait_handle = %ev.handle,
+                        active_context = %self.active_context.object_handle(),
+                        "Inconsistent IPC interaction context");
+                }
+                if let Some(pending_interaction) =
+                    self.notif_pending_interactions.remove(&ev.handle)
+                {
+                    ctx_event.add_interaction(pending_interaction);
+                }
+            }
+
+            Event::QueueSend(ev) | Event::QueueSendFromIsr(ev) => {
+                // Record the interaction source (sender task), send to back
+                ctx_event.promote_internal_nonce();
+                let interaction_src = timeline.interaction_source();
+                let pending_interactions = self
+                    .queue_pending_interactions
+                    .entry(ev.handle)
+                    .or_default();
+                pending_interactions.push_back(interaction_src);
+            }
+            Event::QueueSendFront(ev) | Event::QueueSendFrontFromIsr(ev) => {
+                // Record the interaction source (sender task), send to front
+                ctx_event.promote_internal_nonce();
+                let interaction_src = timeline.interaction_source();
+                let pending_interactions = self
+                    .queue_pending_interactions
+                    .entry(ev.handle)
+                    .or_default();
+                pending_interactions.push_front(interaction_src);
+            }
+            Event::QueueReceive(ev) | Event::QueueReceiveFromIsr(ev) => {
+                // Add any pending remote interaction (recvr task)
+                let pending_interactions = self
+                    .queue_pending_interactions
+                    .entry(ev.handle)
+                    .or_default();
+                if let Some(pending_interaction) = pending_interactions.pop_front() {
+                    ctx_event.add_interaction(pending_interaction);
+                }
+            }
+            Event::QueuePeek(ev) => {
+                // Add any pending remote interaction (recvr task), but don't remove it
+                let pending_interactions = self
+                    .queue_pending_interactions
+                    .entry(ev.handle)
+                    .or_default();
+                if let Some(pending_interaction) = pending_interactions.pop_front() {
+                    pending_interactions.push_front(pending_interaction);
+                    ctx_event.add_interaction(pending_interaction);
+                }
+            }
+
+            _ => (),
+        }
+
+        Ok(ctx_event)
+    }
+
+    fn handle_context_switch(
+        &mut self,
+        event: &Event,
+        trd: &RecorderData,
+    ) -> Result<ContextSwitchOutcome, Error> {
+        let maybe_contex_switch_handle: Option<ContextHandle> = match event {
+            Event::IsrBegin(ev) | Event::IsrResume(ev) => Some(ev.into()),
+            Event::TaskBegin(ev) | Event::TaskResume(ev) | Event::TaskActivate(ev) => {
+                Some(ev.into())
+            }
+            _ => None,
+        };
+
+        match maybe_contex_switch_handle {
+            Some(context) => self.context_switch_in(context, trd),
+            None => Ok(ContextSwitchOutcome::Same),
+        }
     }
 
     /// Called on the task or ISR context switch-in events
     ///
-    /// EventType::TaskSwitchTaskBegin | EventType::TaskSwitchTaskResume
-    /// EventType::TaskSwitchIsrBegin | EventType::TaskSwitchIsrResume
-    pub(crate) async fn context_switch_in<TR: RecorderDataExt>(
+    /// EventType:
+    /// * TaskSwitchTaskBegin
+    /// * TaskSwitchTaskResume
+    /// * TaskActivate
+    /// * TaskSwitchIsrBegin
+    /// * TaskSwitchIsrResume
+    fn context_switch_in(
         &mut self,
-        event_context: ContextHandle,
-        trd: &TR,
+        context: ContextHandle,
+        trd: &RecorderData,
     ) -> Result<ContextSwitchOutcome, Error> {
         // We've resumed from the same context we were already in and not doing
-        // any flattening, nothing to do
-        if !self.single_task_timeline
-            && !self.flatten_isr_timelines
-            && (event_context == self.handle_of_last_logged_context)
+        // any flattening, nothing left to do
+        if !self.cfg.plugin.single_task_timeline
+            && !self.cfg.plugin.flatten_isr_timelines
+            && (context == self.active_context)
         {
             return Ok(ContextSwitchOutcome::Same);
         }
 
+        // self.active_context:
         // * a task or ISR context in normal operation
         // * a task context (!single_task_timeline && flatten_isr_timelines)
         // * startup task context or ISR context (single_task_timeline && !flatten_isr_timelines)
         // * always startup task context (single_task_timeline && flatten_isr_timelines)
-        let (prev_handle, prev_timeline_id) = match self.handle_of_last_logged_context {
-            ContextHandle::Task(h) => (
-                ContextHandle::Task(h),
-                *self
-                    .object_to_timeline_ids
-                    .get(&h)
-                    .ok_or(Error::TaskTimelineLookup(h))?,
-            ),
-            ContextHandle::Isr(h) => (
-                ContextHandle::Isr(h),
-                *self
-                    .object_to_timeline_ids
-                    .get(&h)
-                    .ok_or(Error::IsrTimelineLookup(h))?,
-            ),
-        };
 
-        let mut timeline_is_new = false;
-        let curr_timeline_id = match event_context {
+        let new_context = match context {
             // EventType::TaskSwitchTaskBegin | EventType::TaskSwitchTaskResume
             // Resume could be same task or from an ISR, when the task is already marked as active
             ContextHandle::Task(task_event_handle) => {
-                let handle = if self.single_task_timeline {
+                let handle = if self.cfg.plugin.single_task_timeline {
                     self.startup_task_handle
                 } else {
                     task_event_handle
                 };
-                self.handle_of_last_logged_context = ContextHandle::Task(handle);
-                timeline_is_new = self.registered_object_handles.insert(handle);
-                *self
-                    .object_to_timeline_ids
-                    .entry(handle)
-                    .or_insert_with(TimelineId::allocate)
+                ContextHandle::Task(handle)
             }
             // EventType::TaskSwitchIsrBegin | EventType::TaskSwitchIsrResume
             // Resume happens when we return to another ISR
             ContextHandle::Isr(isr_event_handle) => {
-                if self.flatten_isr_timelines {
+                if self.cfg.plugin.flatten_isr_timelines {
                     // Flatten the ISR context into the parent task context
-                    self.handle_of_last_logged_context = prev_handle;
-                    prev_timeline_id
+                    self.active_context
                 } else {
-                    self.handle_of_last_logged_context = ContextHandle::Isr(isr_event_handle);
-                    timeline_is_new = self.registered_object_handles.insert(isr_event_handle);
-                    *self
-                        .object_to_timeline_ids
-                        .entry(isr_event_handle)
-                        .or_insert_with(TimelineId::allocate)
+                    ContextHandle::Isr(isr_event_handle)
                 }
             }
         };
 
-        self.client.inner().open_timeline(curr_timeline_id).await?;
-        if timeline_is_new {
-            // Add timeline metadata in the newly updated context
-            self.add_timeline_metadata(self.handle_of_last_logged_context, trd)
-                .await?;
-        }
-
-        if prev_timeline_id != curr_timeline_id {
-            Ok(ContextSwitchOutcome::Different(
-                prev_timeline_id,
-                self.timestamp_of_last_event,
-            ))
+        if new_context != self.active_context {
+            self.alloc_context(new_context, trd)?;
+            let prev_context = self.active_context;
+            self.active_context = new_context;
+            Ok(ContextSwitchOutcome::Different(prev_context))
         } else {
             Ok(ContextSwitchOutcome::Same)
         }
     }
 
-    pub(crate) async fn add_timeline_metadata<TR: RecorderDataExt>(
-        &mut self,
-        handle: ContextHandle,
-        trd: &TR,
-    ) -> Result<(), Error> {
-        let tl_details = trd.timeline_details(handle, self.startup_task_name.as_deref())?;
+    fn timeline_mut(&mut self, context: ContextHandle) -> Result<&mut TimelineMeta, Error> {
+        match context {
+            ContextHandle::Task(h) => self
+                .objects_to_timelines
+                .get_mut(&h)
+                .ok_or(Error::TaskTimelineLookup(h)),
+            ContextHandle::Isr(h) => self
+                .objects_to_timelines
+                .get_mut(&h)
+                .ok_or(Error::IsrTimelineLookup(h)),
+        }
+    }
 
-        let mut attr_kvs = self.common_timeline_attr_kvs.clone();
-        attr_kvs.insert(
-            self.client.timeline_key(tl_details.name_key).await?,
-            tl_details.name.into(),
-        );
-        attr_kvs.insert(
-            self.client.timeline_key(tl_details.description_key).await?,
-            tl_details.description.into(),
-        );
-        attr_kvs.insert(
-            self.client
-                .timeline_key(tl_details.object_handle_key)
-                .await?,
-            i64::from(u32::from(tl_details.object_handle)).into(),
-        );
-
-        self.client.inner().timeline_metadata(attr_kvs).await?;
-
+    fn alloc_context(&mut self, context: ContextHandle, trd: &RecorderData) -> Result<(), Error> {
+        let mut is_new = false;
+        let tlm = self
+            .objects_to_timelines
+            .entry(context.object_handle())
+            .or_insert_with(|| {
+                is_new = true;
+                let attrs = self.common_timeline_attributes.clone();
+                TimelineMeta::new(context.object_handle(), attrs)
+            });
+        if is_new {
+            trd.add_core_timeline_attributes(&self.cfg.plugin, context, &mut tlm.attributes)?;
+        }
         Ok(())
     }
 }
 
-pub(crate) fn arg_to_attr_val(arg: &Argument) -> AttrVal {
-    match arg {
-        Argument::I8(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::U8(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::I16(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::U16(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::I32(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::U32(v) => AttrVal::Integer(i64::from(*v)),
-        Argument::F32(v) => AttrVal::from(f64::from(v.0)),
-        Argument::F64(v) => AttrVal::from(v.0),
-        Argument::String(v) => AttrVal::String(v.clone().into()),
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+enum ContextSwitchOutcome {
+    /// Current task/ISR is already marked as active, we're on the same timeline
+    Same,
+    /// Switched to a new task/ISR, return the previous context
+    Different(ContextHandle),
+}
+
+type QueueHandle = ObjectHandle;
+type DestinationContextHandle = ObjectHandle;
+
+type RemoteTimelineId = TimelineId;
+type RemoteInteractionNonce = i64;
+type InteractionNonce = i64;
+type Interaction = (RemoteTimelineId, RemoteInteractionNonce);
+
+impl ContextEvent {
+    pub fn promote_internal_nonce(&mut self) {
+        if let Some(nonce) = self.attributes.remove(&EventAttrKey::InternalNonce) {
+            self.attributes.insert(EventAttrKey::Nonce, nonce);
+        }
+    }
+
+    fn add_internal_nonce(&mut self, nonce: InteractionNonce) {
+        self.attributes
+            .insert(EventAttrKey::InternalNonce, nonce.into());
+    }
+
+    fn add_interaction(&mut self, interaction: Interaction) {
+        self.attributes
+            .insert(EventAttrKey::RemoteTimelineId, interaction.0.into());
+        self.attributes
+            .insert(EventAttrKey::RemoteNonce, interaction.1.into());
+    }
+}
+
+impl TimelineMeta {
+    fn new(context: ObjectHandle, attributes: TimelineAttributes) -> Self {
+        let id = TimelineId::allocate();
+        trace!(%context, timeline_id = %id, "Creating timeline metadata");
+        Self {
+            id,
+            attributes,
+            nonce: 0,
+        }
+    }
+
+    fn increment_nonce(&mut self) {
+        self.nonce = self.nonce.wrapping_add(1);
+    }
+
+    fn interaction_source(&self) -> Interaction {
+        (self.id, self.nonce)
+    }
+
+    pub fn id(&self) -> TimelineId {
+        self.id
+    }
+
+    pub fn attributes(&self) -> &TimelineAttributes {
+        &self.attributes
     }
 }

@@ -1,55 +1,67 @@
-use crate::attr::{AttrKeys, EventAttrKey, TimelineAttrKey};
+use crate::{
+    attr::{AttrKeys, EventAttrKey, TimelineAttrKey},
+    error::Error,
+};
 use auxon_sdk::{
-    ingest_client::{BoundTimelineState, IngestClient, IngestError},
-    ingest_protocol::InternedAttrKey,
+    api::{AttrVal, TimelineId},
+    ingest_client::{dynamic::DynamicIngestClient, IngestClient, ReadyState},
 };
 
 pub struct Client {
     timeline_keys: AttrKeys<TimelineAttrKey>,
     event_keys: AttrKeys<EventAttrKey>,
-    inner: IngestClient<BoundTimelineState>,
+    pub(crate) inner: DynamicIngestClient,
 }
 
 impl Client {
-    pub fn new(client: IngestClient<BoundTimelineState>) -> Self {
+    pub fn new(client: IngestClient<ReadyState>) -> Self {
         Self {
             timeline_keys: AttrKeys::default(),
             event_keys: AttrKeys::default(),
-            inner: client,
+            inner: client.into(),
         }
     }
 
-    pub async fn close(mut self) -> Result<(), IngestError> {
-        self.inner.flush().await?;
-        let _ = self.inner.close_timeline();
+    pub async fn switch_timeline(
+        &mut self,
+        id: TimelineId,
+        new_timeline_attrs: Option<impl IntoIterator<Item = (&TimelineAttrKey, &AttrVal)>>,
+    ) -> Result<(), Error> {
+        self.inner.open_timeline(id).await?;
+        if let Some(attrs) = new_timeline_attrs {
+            let mut interned_attrs = Vec::new();
+            for (k, v) in attrs.into_iter() {
+                let int_key = if let Some(ik) = self.timeline_keys.get(k) {
+                    *ik
+                } else {
+                    let ik = self.inner.declare_attr_key(k.to_string()).await?;
+                    self.timeline_keys.insert(k.clone(), ik);
+                    ik
+                };
+                interned_attrs.push((int_key, v.clone()));
+            }
+            self.inner.timeline_metadata(interned_attrs).await?;
+        }
         Ok(())
     }
 
-    pub async fn timeline_key(
+    pub async fn send_event(
         &mut self,
-        key: TimelineAttrKey,
-    ) -> Result<InternedAttrKey, IngestError> {
-        let k = self.timeline_keys.get(&mut self.inner, key).await?;
-        Ok(k)
-    }
-
-    pub async fn event_key(&mut self, key: EventAttrKey) -> Result<InternedAttrKey, IngestError> {
-        let k = self.event_keys.get(&mut self.inner, key).await?;
-        Ok(k)
-    }
-
-    pub fn inner(&mut self) -> &mut IngestClient<BoundTimelineState> {
-        &mut self.inner
-    }
-
-    pub(crate) fn remove_timeline_string_key(
-        &mut self,
-        key: &str,
-    ) -> Option<(TimelineAttrKey, InternedAttrKey)> {
-        self.timeline_keys.remove_string_key_entry(key)
-    }
-
-    pub(crate) fn add_timeline_key(&mut self, key: TimelineAttrKey, interned_key: InternedAttrKey) {
-        self.timeline_keys.insert(key, interned_key)
+        ordering: u128,
+        attrs: impl IntoIterator<Item = (&EventAttrKey, &AttrVal)>,
+    ) -> Result<(), Error> {
+        let mut interned_attrs = Vec::new();
+        for (k, v) in attrs.into_iter() {
+            let int_key = if let Some(ik) = self.event_keys.get(k) {
+                *ik
+            } else {
+                let ik = self.inner.declare_attr_key(k.to_string()).await?;
+                self.event_keys.insert(k.clone(), ik);
+                ik
+            };
+            interned_attrs.push((int_key, v.clone()));
+        }
+        self.inner.event(ordering, interned_attrs).await?;
+        Ok(())
     }
 }

@@ -1,15 +1,14 @@
-pub use attr::{AttrKeyIndex, AttrKeys, EventAttrKey, TimelineAttrKey};
+pub use attr::{AttrKeys, EventAttrKey, TimelineAttrKey};
 pub use client::Client;
 pub use command::Command;
 pub use config::{TraceRecorderConfig, TraceRecorderConfigEntry};
-pub use context_manager::ContextSwitchOutcome;
 pub use error::Error;
 pub use interruptor::Interruptor;
 pub use opts::{
     FormatArgAttributeKeysItem, FormatArgAttributeKeysSet, ReflectorOpts, RenameMap, RenameMapItem,
     TraceRecorderOpts,
 };
-pub use recorder_data::{NanosecondsExt, RecorderDataExt, TimelineDetails};
+pub use recorder_data::{NanosecondsExt, RecorderDataExt};
 
 pub const PLUGIN_VERSION: &str = env!("CARGO_PKG_VERSION");
 
