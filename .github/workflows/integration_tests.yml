@@ -216,9 +216,9 @@ jobs:
           MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
         run: |
           echo '# RTT Spec Coverage' >> $GITHUB_STEP_SUMMARY
-          conform spec coverage --format text --segment "RTT:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
+          conform spec coverage --format text --segment "RTT:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY || true
           echo '# TCP Spec Coverage' >> $GITHUB_STEP_SUMMARY
-          conform spec coverage --format text --segment "TCP:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
+          conform spec coverage --format text --segment "TCP:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY || true
 
       - name: Export Data
         if: always()
