@@ -18,6 +18,7 @@ additional-timeline-attributes = [
 [plugins.ingest.collectors.trace-recorder-tcp.metadata]
 startup-task-name = 'init'
 user-event-channel = true
+interaction-mode = 'ipc'
 deviant-event-id-base = 0x0FF0
 remote = "192.0.2.80:8888"
 connect-timeout = "60s"

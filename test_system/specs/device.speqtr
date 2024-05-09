@@ -1,6 +1,21 @@
 # @author = "dev.automation@auxon.io"
 # @project = "Test System"
 
+behavior "Tracing"
+    nominal case "Start event"
+        TRACE_START @ init as start
+        # Should be the first event in the log
+        NOT PRECEDED BY *@*
+        AND start.internal.trace_recorder.id = 1
+        AND start.internal.trace_recorder.event_count = 6
+        AND start.internal.trace_recorder.nonce = 1
+        AND start.internal.trace_recorder.object_handle = 2
+        AND start.internal.trace_recorder.type = "TRACE_START"
+        AND start.timeline.internal.trace_recorder.kernel.port = "FreeRTOS"
+        AND start.timeline.internal.trace_recorder.protocol = "streaming"
+    end
+end
+
 # @type = "task-resources"
 behavior "Task Scheduling Resource Usage"
     when "a stats event is logged for a task"
@@ -69,6 +84,30 @@ behavior "Control Cycle"
         adc @ Sensor
     end
 
+    nominal case "program execution follows the control cycle expectations"
+        adc
+            FOLLOWED BY
+        QUEUE_SEND @ Sensor (_.queue = "adc_queue")
+            FOLLOWED BY
+        QUEUE_RECEIVE @ Actuator (_.queue = "adc_queue")
+            FOLLOWED BY
+        pwm @ Actuator as pwm
+            FOLLOWED BY
+        QUEUE_SEND @ Actuator (_.queue = "comms_queue")
+            FOLLOWED BY
+        QUEUE_RECEIVE @ Comms (_.queue = "comms_queue")
+            FOLLOWED BY
+        comms_tx @ Comms (_.adc = adc.measurement AND _.pwm = pwm.value)
+    end
+    
+    recovery case "task is suspended"
+        adc
+            FOLLOWED BY
+        TASK_READY @ Sensor
+            FOLLOWED BY
+        warn @ Sensor (_.formatted_string = "Called vTaskSuspend")
+    end
+
     recovery case "a higher priority context is activated"
         adc
             FOLLOWED BY
@@ -79,7 +118,7 @@ behavior "Control Cycle"
         TASK_ACTIVATE @ * (_.timeline.name = other_task.task AND _.priority > 2)
     end
 
-    recovery case "a higher priority context is activated"
+    recovery case "another higher priority context is activated"
         adc
             FOLLOWED BY
         QUEUE_SEND @ Sensor (_.queue = "adc_queue")
@@ -91,37 +130,5 @@ behavior "Control Cycle"
         TASK_READY @ Actuator (_.task != "Actuator") as other_task
             FOLLOWED BY
         TASK_ACTIVATE @ * (_.timeline.name = other_task.task AND _.priority > 2)
-    end
-
-    nominal case "program execution follows the control cycle expectations"
-        adc
-            FOLLOWED BY
-        QUEUE_SEND @ Sensor (_.queue = "adc_queue")
-            FOLLOWED BY
-        TASK_READY @ Sensor (_.task = "Actuator")
-            FOLLOWED BY
-        TASK_ACTIVATE @ Actuator
-            FOLLOWED BY
-        QUEUE_RECEIVE @ Actuator (_.queue = "adc_queue")
-            FOLLOWED BY
-        pwm @ Actuator as pwm
-            FOLLOWED BY
-        QUEUE_SEND @ Actuator (_.queue = "comms_queue")
-            FOLLOWED BY
-        TASK_READY @ Actuator (_.task = "Comms")
-            FOLLOWED BY
-        TASK_ACTIVATE @ Comms
-            FOLLOWED BY
-        QUEUE_RECEIVE @ Comms (_.queue = "comms_queue")
-            FOLLOWED BY
-        comms_tx @ Comms (_.adc = adc.measurement AND _.pwm = pwm.value)
-    end
-end
-
-behavior "Tracing"
-    nominal case "Start event"
-        TRACE_START @ init (_.internal.trace_recorder.id = 1 AND _.internal.trace_recorder.event_count = 6)
-        # Should be the first event in the log
-        NOT PRECEDED BY *@*
     end
 end
