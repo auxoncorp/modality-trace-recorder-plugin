@@ -531,8 +531,24 @@ impl RecorderDataExt for RecorderData {
 
     fn common_timeline_attributes(&self, cfg: &TraceRecorderConfig) -> TimelineAttributes {
         let mut attrs = HashMap::new();
-        let run_id = cfg.plugin.run_id.unwrap_or_else(Uuid::new_v4);
-        let time_domain = cfg.plugin.time_domain.unwrap_or_else(Uuid::new_v4);
+        let run_id = if let Some(id) = cfg.plugin.run_id.as_ref() {
+            if let Ok(val) = id.parse::<u64>() {
+                val.into()
+            } else {
+                Uuid::new_v4().to_string().into()
+            }
+        } else {
+            Uuid::new_v4().to_string().into()
+        };
+        let time_domain = if let Some(id) = cfg.plugin.time_domain.as_ref() {
+            if let Ok(val) = id.parse::<u64>() {
+                val.into()
+            } else {
+                Uuid::new_v4().to_string().into()
+            }
+        } else {
+            Uuid::new_v4().to_string().into()
+        };
         trace!(run_id = %run_id, time_domain = %time_domain);
 
         if let Some(r) = self.timestamp_info.timer_frequency.resolution_ns() {
@@ -540,8 +556,8 @@ impl RecorderDataExt for RecorderData {
             attrs.insert(TimelineAttrKey::TimeResolution, r.into());
         }
 
-        attrs.insert(TimelineAttrKey::RunId, run_id.to_string().into());
-        attrs.insert(TimelineAttrKey::TimeDomain, time_domain.to_string().into());
+        attrs.insert(TimelineAttrKey::RunId, run_id);
+        attrs.insert(TimelineAttrKey::TimeDomain, time_domain);
         attrs.insert(TimelineAttrKey::ClockStyle, "relative".into());
         attrs.insert(TimelineAttrKey::Protocol, self.protocol.to_string().into());
         attrs.insert(

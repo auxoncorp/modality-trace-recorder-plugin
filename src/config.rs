@@ -16,7 +16,6 @@ use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use url::Url;
-use uuid::Uuid;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum TraceRecorderConfigEntry {
@@ -35,8 +34,8 @@ pub struct TraceRecorderConfig {
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct PluginConfig {
-    pub run_id: Option<Uuid>,
-    pub time_domain: Option<Uuid>,
+    pub run_id: Option<String>,
+    pub time_domain: Option<String>,
     pub startup_task_name: Option<String>,
     pub single_task_timeline: bool,
     pub flatten_isr_timelines: bool,
@@ -354,8 +353,8 @@ mod internal {
     #[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
     #[serde(rename_all = "kebab-case", default)]
     pub struct CommonPluginConfig {
-        pub run_id: Option<Uuid>,
-        pub time_domain: Option<Uuid>,
+        pub run_id: Option<String>,
+        pub time_domain: Option<String>,
         pub startup_task_name: Option<String>,
         pub single_task_timeline: bool,
         pub flatten_isr_timelines: bool,
@@ -761,12 +760,8 @@ metrics = true
                     max_write_batch_staleness: None,
                 },
                 plugin: PluginConfig {
-                    run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1")
-                        .unwrap()
-                        .into(),
-                    time_domain: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1")
-                        .unwrap()
-                        .into(),
+                    run_id: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1".to_owned().into(),
+                    time_domain: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1".to_owned().into(),
                     startup_task_name: "m3".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
@@ -858,12 +853,8 @@ metrics = true
                     max_write_batch_staleness: None,
                 },
                 plugin: PluginConfig {
-                    run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2")
-                        .unwrap()
-                        .into(),
-                    time_domain: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2")
-                        .unwrap()
-                        .into(),
+                    run_id: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2".to_owned().into(),
+                    time_domain: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d2".to_owned().into(),
                     startup_task_name: "m4".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
@@ -957,12 +948,8 @@ metrics = true
                     max_write_batch_staleness: None,
                 },
                 plugin: PluginConfig {
-                    run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
-                        .unwrap()
-                        .into(),
-                    time_domain: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
-                        .unwrap()
-                        .into(),
+                    run_id: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3".to_owned().into(),
+                    time_domain: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3".to_owned().into(),
                     startup_task_name: "m5".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,
@@ -1069,12 +1056,8 @@ metrics = true
                     max_write_batch_staleness: None,
                 },
                 plugin: PluginConfig {
-                    run_id: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
-                        .unwrap()
-                        .into(),
-                    time_domain: Uuid::from_str("a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3")
-                        .unwrap()
-                        .into(),
+                    run_id: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3".to_owned().into(),
+                    time_domain: "a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d3".to_owned().into(),
                     startup_task_name: "m5".to_owned().into(),
                     single_task_timeline: true,
                     flatten_isr_timelines: true,

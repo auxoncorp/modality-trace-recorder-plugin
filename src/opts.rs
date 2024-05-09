@@ -5,7 +5,6 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use trace_recorder_parser::types::ObjectClass;
 use url::Url;
-use uuid::Uuid;
 
 #[derive(Parser, Debug, Clone, Default)]
 pub struct ReflectorOpts {
@@ -49,17 +48,17 @@ pub struct ReflectorOpts {
     )]
     pub allow_insecure_tls: bool,
 
-    /// Use the provided UUID as the run ID instead of generating a random one
-    #[clap(long, name = "run-uuid", help_heading = "REFLECTOR CONFIGURATION")]
-    pub run_id: Option<Uuid>,
+    /// Use the provided run ID instead of generating a random UUID
+    #[clap(long, name = "run-id", help_heading = "REFLECTOR CONFIGURATION")]
+    pub run_id: Option<String>,
 
-    /// Use the provided UUID as the time domain ID instead of generating a random one
+    /// Use the provided time domain ID instead of generating a random UUID
     #[clap(
         long,
-        name = "time-domain-uuid",
+        name = "time-domain-id",
         help_heading = "REFLECTOR CONFIGURATION"
     )]
-    pub time_domain: Option<Uuid>,
+    pub time_domain: Option<String>,
 }
 
 #[derive(Parser, Debug, Clone, Default)]
