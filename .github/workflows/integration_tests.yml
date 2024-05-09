@@ -203,19 +203,20 @@ jobs:
           modality workspace inspect ${{env.MODALITY_WORKSPACE}}
           modality segment list
 
-      - name: Evaluate specs over RTT data
+      - name: Evaluate specs
         env:
           MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
         run: |
           conform spec eval --name device-specs --segment "RTT:$GITHUB_RUN_NUMBER"
-          echo '# RTT Spec Coverage' >> $GITHUB_STEP_SUMMARY
-          conform spec coverage --format text --segment "RTT:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
+          conform spec eval --name device-specs --segment "TCP:$GITHUB_RUN_NUMBER"
 
-      - name: Evaluate specs over TCP data
+      - name: Spec coverage
+        continue-on-error: true
         env:
           MODALITY_AUTH_TOKEN: ${{env.MODALITY_AUTH_TOKEN}}
         run: |
-          conform spec eval --name device-specs --segment "TCP:$GITHUB_RUN_NUMBER"
+          echo '# RTT Spec Coverage' >> $GITHUB_STEP_SUMMARY
+          conform spec coverage --format text --segment "RTT:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
           echo '# TCP Spec Coverage' >> $GITHUB_STEP_SUMMARY
           conform spec coverage --format text --segment "TCP:$GITHUB_RUN_NUMBER" >> $GITHUB_STEP_SUMMARY
 
