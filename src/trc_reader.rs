@@ -9,7 +9,7 @@ use crate::{
 use auxon_sdk::ingest_client::IngestClient;
 use std::{collections::HashSet, io::Read};
 use trace_recorder_parser::{streaming::RecorderData, types::KernelPortIdentity};
-use tracing::{debug, warn};
+use tracing::{debug, trace, warn};
 
 pub async fn run<R: Read + Send>(
     mut r: R,
@@ -64,7 +64,7 @@ pub async fn run<R: Read + Send>(
             }
         };
 
-        debug!(%event_code, %event, "Received event");
+        trace!(%event_code, %event, "Received event");
 
         let ctx_event = match ctx_mngr.process_event(event_code, &event, &trd) {
             Ok(Some(ev)) => ev,

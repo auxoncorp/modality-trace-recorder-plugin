@@ -6,7 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use auxon_sdk::{
-    api::{AttrVal, BigInt, Nanoseconds},
+    api::{AttrVal, Nanoseconds},
     reflector_config::AttrKeyEqValuePair,
 };
 use derive_more::Display;
@@ -643,7 +643,7 @@ impl RecorderDataExt for RecorderData {
         );
         attrs.insert(
             TimelineAttrKey::LatestTimestampTicks,
-            BigInt::new_attr_val(self.timestamp_info.latest_timestamp.ticks().into()),
+            self.timestamp_info.latest_timestamp.ticks().into(),
         );
         attrs.insert(
             TimelineAttrKey::LatestTimestamp,

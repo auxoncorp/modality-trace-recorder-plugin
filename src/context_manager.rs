@@ -8,12 +8,12 @@ use crate::{
         ContextHandle, EventAttributes, NanosecondsExt, RecorderDataExt, TimelineAttributes,
     },
 };
-use auxon_sdk::api::{AttrVal, BigInt, TimelineId};
+use auxon_sdk::api::{AttrVal, TimelineId};
 use std::collections::{HashMap, VecDeque};
 use trace_recorder_parser::{
     streaming::event::{Event, EventCode, EventType, TrackingEventCounter},
     streaming::RecorderData,
-    time::StreamingInstant,
+    time::{StreamingInstant, Timestamp},
     types::ObjectHandle,
 };
 use tracing::{debug, trace, warn};
@@ -58,6 +58,10 @@ pub struct ContextManager {
     active_context: ContextHandle,
     notif_pending_interactions: HashMap<DestinationContextHandle, Interaction>,
     queue_pending_interactions: HashMap<QueueHandle, VecDeque<Interaction>>,
+
+    // State for stats
+    last_running_timestamp: Timestamp,
+    context_stats: HashMap<ContextHandle, ContextStats>,
 }
 
 impl ContextManager {
@@ -103,6 +107,8 @@ impl ContextManager {
             active_context: ContextHandle::Task(startup_task_handle),
             notif_pending_interactions: Default::default(),
             queue_pending_interactions: Default::default(),
+            last_running_timestamp: DurationTicks::zero(),
+            context_stats: Default::default(),
         })
     }
 
@@ -127,7 +133,6 @@ impl ContextManager {
             self.cfg.plugin.flatten_isr_timelines = true;
             self.cfg.plugin.startup_task_name = Some(Self::UNKNOWN_CONTEXT.to_owned());
             self.active_context = ContextHandle::Task(self.startup_task_handle);
-            // TODO - see if this works
         }
     }
 
@@ -154,6 +159,8 @@ impl ContextManager {
             // Setup initial root/startup task
             self.active_context = ContextHandle::Task(self.startup_task_handle);
             self.alloc_context(self.active_context, trd)?;
+            self.context_stats
+                .insert(self.active_context, ContextStats::new(Timestamp::zero()));
 
             self.event_counter_tracker
                 .set_initial_count(event.event_count());
@@ -168,6 +175,7 @@ impl ContextManager {
         let event_count = self.event_counter_tracker.count();
         let timer_ticks = event.timestamp();
         let timestamp = self.time_rollover_tracker.elapsed(timer_ticks);
+        self.last_running_timestamp = timestamp;
 
         let mut attrs: EventAttributes = Default::default();
 
@@ -224,14 +232,8 @@ impl ContextManager {
         }
 
         // Add timerstamp attrs
-        attrs.insert(
-            EventAttrKey::TimerTicks,
-            BigInt::new_attr_val(timer_ticks.ticks().into()),
-        );
-        attrs.insert(
-            EventAttrKey::TimestampTicks,
-            BigInt::new_attr_val(timestamp.ticks().into()),
-        );
+        attrs.insert(EventAttrKey::TimerTicks, timer_ticks.ticks().into());
+        attrs.insert(EventAttrKey::TimestampTicks, timestamp.ticks().into());
         attrs.insert(
             EventAttrKey::Timestamp,
             AttrVal::Timestamp(
@@ -241,21 +243,6 @@ impl ContextManager {
             ),
         );
 
-        // Handle interaction mode specifics
-        match self.cfg.plugin.interaction_mode {
-            InteractionMode::FullyLinearized => {
-                Ok(Some(self.process_fully_linearized_mode(attrs, event, trd)?))
-            }
-            InteractionMode::Ipc => Ok(Some(self.process_ipc_mode(attrs, event, trd)?)),
-        }
-    }
-
-    fn process_fully_linearized_mode(
-        &mut self,
-        attrs: EventAttributes,
-        event: &Event,
-        trd: &RecorderData,
-    ) -> Result<ContextEvent, Error> {
         let ctx_switch_outcome = self.handle_context_switch(event, trd)?;
 
         let mut ctx_event = ContextEvent {
@@ -265,6 +252,27 @@ impl ContextManager {
             add_previous_event_nonce: false,
         };
 
+        // Add status attributes when we get a context switch event
+        if matches!(ctx_switch_outcome, ContextSwitchOutcome::Different(_)) {
+            if let Some(ctx_stats) = self.context_stats.get(&self.active_context) {
+                ctx_event.add_stats(trd, self.last_running_timestamp, ctx_stats);
+            }
+        }
+
+        // Handle interaction mode specifics
+        match self.cfg.plugin.interaction_mode {
+            InteractionMode::FullyLinearized => Ok(Some(
+                self.process_fully_linearized_mode(ctx_switch_outcome, ctx_event)?,
+            )),
+            InteractionMode::Ipc => Ok(Some(self.process_ipc_mode(event, ctx_event)?)),
+        }
+    }
+
+    fn process_fully_linearized_mode(
+        &mut self,
+        ctx_switch_outcome: ContextSwitchOutcome,
+        mut ctx_event: ContextEvent,
+    ) -> Result<ContextEvent, Error> {
         match ctx_switch_outcome {
             ContextSwitchOutcome::Same => {
                 // Normal event on the active context
@@ -287,19 +295,9 @@ impl ContextManager {
 
     fn process_ipc_mode(
         &mut self,
-        attrs: EventAttributes,
         event: &Event,
-        trd: &RecorderData,
+        mut ctx_event: ContextEvent,
     ) -> Result<ContextEvent, Error> {
-        let _ctx_switch_outcome = self.handle_context_switch(event, trd)?;
-
-        let mut ctx_event = ContextEvent {
-            context: self.active_context.object_handle(),
-            global_ordering: self.global_ordering,
-            attributes: attrs,
-            add_previous_event_nonce: false,
-        };
-
         let timeline = self.timeline_mut(self.active_context)?;
         timeline.increment_nonce();
         ctx_event.add_internal_nonce(timeline.nonce);
@@ -411,6 +409,20 @@ impl ContextManager {
         context: ContextHandle,
         trd: &RecorderData,
     ) -> Result<ContextSwitchOutcome, Error> {
+        if context != self.active_context {
+            // Update runtime stats for the previous context being switched out
+            if let Some(prev_ctx_stats) = self.context_stats.get_mut(&self.active_context) {
+                prev_ctx_stats.update(self.last_running_timestamp);
+            }
+
+            // Same for the new context being switched in
+            let ctx_stats = self
+                .context_stats
+                .entry(context)
+                .or_insert_with(|| ContextStats::new(self.last_running_timestamp));
+            ctx_stats.set_last_timestamp(self.last_running_timestamp);
+        }
+
         // We've resumed from the same context we were already in and not doing
         // any flattening, nothing left to do
         if !self.cfg.plugin.single_task_timeline
@@ -497,6 +509,8 @@ enum ContextSwitchOutcome {
     Different(ContextHandle),
 }
 
+type DurationTicks = Timestamp;
+
 type QueueHandle = ObjectHandle;
 type DestinationContextHandle = ObjectHandle;
 
@@ -522,6 +536,42 @@ impl ContextEvent {
             .insert(EventAttrKey::RemoteTimelineId, interaction.0.into());
         self.attributes
             .insert(EventAttrKey::RemoteNonce, interaction.1.into());
+    }
+
+    fn add_stats(
+        &mut self,
+        trd: &RecorderData,
+        total_runtime: DurationTicks,
+        ctx_stats: &ContextStats,
+    ) {
+        self.attributes.insert(
+            EventAttrKey::TotalRuntimeTicks,
+            total_runtime.ticks().into(),
+        );
+        self.attributes.insert(
+            EventAttrKey::TotalRuntime,
+            AttrVal::Timestamp(
+                trd.timestamp_info
+                    .timer_frequency
+                    .lossy_timestamp_ns(total_runtime),
+            ),
+        );
+        self.attributes.insert(
+            EventAttrKey::RuntimeTicks,
+            ctx_stats.total_runtime.ticks().into(),
+        );
+        self.attributes.insert(
+            EventAttrKey::Runtime,
+            AttrVal::Timestamp(
+                trd.timestamp_info
+                    .timer_frequency
+                    .lossy_timestamp_ns(ctx_stats.total_runtime),
+            ),
+        );
+        let runtime_utilization =
+            ctx_stats.total_runtime.ticks() as f64 / total_runtime.ticks() as f64;
+        self.attributes
+            .insert(EventAttrKey::CpuUtilization, runtime_utilization.into());
     }
 }
 
@@ -550,5 +600,34 @@ impl TimelineMeta {
 
     pub fn attributes(&self) -> &TimelineAttributes {
         &self.attributes
+    }
+}
+
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
+struct ContextStats {
+    last_timestamp: Timestamp,
+    total_runtime: DurationTicks,
+}
+
+impl ContextStats {
+    fn new(last_timestamp: Timestamp) -> Self {
+        Self {
+            last_timestamp,
+            total_runtime: DurationTicks::zero(),
+        }
+    }
+
+    fn set_last_timestamp(&mut self, last_timestamp: Timestamp) {
+        self.last_timestamp = last_timestamp;
+    }
+
+    fn update(&mut self, timestamp: Timestamp) {
+        if timestamp < self.last_timestamp {
+            warn!("Stats timestamp went backwards");
+        } else {
+            let diff = timestamp - self.last_timestamp;
+            self.total_runtime += diff;
+            self.last_timestamp = timestamp;
+        }
     }
 }
