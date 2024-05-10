@@ -132,6 +132,85 @@ Available modes:
   - queue
   - task notification
 
+### Target Resources
+
+Target CPU utilization is recorded whenever a context switch event occurs. The following event attributes are added:
+* `event.cpu_utilization`
+* `event.total_runtime`
+* `event.internal.trace_recorder.total_runtime.ticks`
+* `event.runtime`
+* `event.internal.trace_recorder.runtime.ticks`
+
+```text
+$ modality query '* @ * (exists(_.internal.trace_recorder.cpu_utilization))' --show-internal
+
+Result 1:
+═════════
+■             TASK_ACTIVATE @ Sensor   [%d55261a81d1643068e04f887c08ff0fe:4646]
+║               cpu_utilization = 7.612719137213211e-4
+║               internal.trace_recorder.code = 8247
+║               internal.trace_recorder.event_count = 17995
+║               internal.trace_recorder.event_count.raw = 17995
+║               internal.trace_recorder.id = 55
+║               internal.trace_recorder.nonce = 283
+║               internal.trace_recorder.object_handle = 536900304
+║               internal.trace_recorder.parameter_count = 2
+║               internal.trace_recorder.runtime.ticks = 11039
+║               internal.trace_recorder.timer.ticks = 14500732
+║               internal.trace_recorder.timestamp.ticks = 14500732
+║               internal.trace_recorder.total_runtime.ticks = 14500732
+║               internal.trace_recorder.type = TASK_ACTIVATE
+║               priority = 1
+║               runtime = +0.022994235s
+║               task = Sensor
+║               timestamp = +30.205025
+║               total_runtime = +30.205025s
+
+Result 2:
+═════════
+■             TASK_ACTIVATE @ Actuator   [%d8626207906d4123a5da989a8e2ca1fa:53]
+║               cpu_utilization = 0
+║               internal.trace_recorder.code = 8247
+║               internal.trace_recorder.event_count = 88
+║               internal.trace_recorder.event_count.raw = 88
+║               internal.trace_recorder.id = 55
+║               internal.trace_recorder.nonce = 1
+║               internal.trace_recorder.object_handle = 536898120
+║               internal.trace_recorder.parameter_count = 2
+║               internal.trace_recorder.runtime.ticks = 0
+║               internal.trace_recorder.timer.ticks = 781
+║               internal.trace_recorder.timestamp.ticks = 781
+║               internal.trace_recorder.total_runtime.ticks = 781
+║               internal.trace_recorder.type = TASK_ACTIVATE
+║               priority = 2
+║               runtime = +0s
+║               task = Actuator
+║               timestamp = +0.001626823s
+║               total_runtime = +0.001626823s
+```
+
+If the trace-recorder configuration `TRC_CFG_ENABLE_STACK_MONITOR` is set, then unused stack (low mark) is
+reported on the `UNUSED_STACK` event.
+
+```text
+$ modality query 'UNUSED_STACK@*'
+
+Result 1:
+═════════
+■             UNUSED_STACK @ TzCtrl   [%f1489d27ae7b40c78877426df2219299:57]
+║               low_mark = 1004
+║               task = TzCtrl
+║               timestamp = +0.00177055s
+║
+
+Result 2:
+═════════
+■             UNUSED_STACK @ TzCtrl   [%f1489d27ae7b40c78877426df2219299:58]
+║               low_mark = 1173
+║               task = IP-task
+║               timestamp = +0.00197885s
+```
+
 ## Configuration
 
 All of the plugins can be configured through a TOML configuration file (from either the `--config` option or the `MODALITY_REFLECTOR_CONFIG` environment variable).

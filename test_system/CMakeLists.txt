@@ -298,7 +298,7 @@ add_custom_command(
     POST_BUILD
     MAIN_DEPENDENCY ${PROJECT_NAME}
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    COMMAND renode --hide-monitor ${RENODE_SCRIPT}
+    COMMAND renode --hide-monitor --disable-gui ${RENODE_SCRIPT}
     COMMENT "Emulating firmware with Renode")
 
 add_custom_target(

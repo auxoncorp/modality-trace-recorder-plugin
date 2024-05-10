@@ -204,6 +204,17 @@ pub enum EventAttrKey {
     #[display(fmt = "event.arg14")]
     UserArg14,
 
+    #[display(fmt = "event.internal.trace_recorder.total_runtime.ticks")]
+    TotalRuntimeTicks,
+    #[display(fmt = "event.total_runtime")]
+    TotalRuntime,
+    #[display(fmt = "event.internal.trace_recorder.runtime.ticks")]
+    RuntimeTicks,
+    #[display(fmt = "event.runtime")]
+    Runtime,
+    #[display(fmt = "event.cpu_utilization")]
+    CpuUtilization,
+
     #[display(fmt = "event.{_0}")]
     CustomUserArg(String),
 }

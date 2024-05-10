@@ -81,8 +81,8 @@ void vAssertCalled(const char* file, int line);
 #define INCLUDE_vTaskSuspend                      1
 #define INCLUDE_vTaskDelay                        1
 #define INCLUDE_xTaskDelayUntil                   1
-#define INCLUDE_uxTaskGetStackHighWaterMark       0
-#define INCLUDE_uxTaskGetStackHighWaterMark2      0
+#define INCLUDE_uxTaskGetStackHighWaterMark       1
+#define INCLUDE_uxTaskGetStackHighWaterMark2      1
 #define INCLUDE_xTaskGetSchedulerState            0
 #define INCLUDE_xTaskGetIdleTaskHandle            0
 #define INCLUDE_xTaskGetHandle                    1
