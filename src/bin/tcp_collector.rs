@@ -1,7 +1,8 @@
+use auxon_sdk::reflector_config::AttrKeyEqValuePair;
 use clap::Parser;
 use modality_trace_recorder_plugin::{
     tracing::try_init_tracing_subscriber, trc_reader, Command, Interruptor, ReflectorOpts,
-    TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
+    TimelineAttrKey, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::io::Write;
 use std::net::{SocketAddr, TcpStream};
@@ -116,6 +117,14 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     } else {
         "127.0.0.1:8888".parse()?
     };
+
+    cfg.ingest
+        .timeline_attributes
+        .additional_timeline_attributes
+        .push(AttrKeyEqValuePair(
+            TimelineAttrKey::TcpRemote.into_cfg_attr(),
+            remote.to_string().into(),
+        ));
 
     let mut stream = match cfg.plugin.tcp_collector.connect_timeout {
         Some(to) if !to.0.is_zero() => connect_retry_loop(&remote, to.0.into())?,
