@@ -1,6 +1,7 @@
+use auxon_sdk::reflector_config::AttrKeyEqValuePair;
 use clap::Parser;
 use modality_trace_recorder_plugin::{
-    tracing::try_init_tracing_subscriber, trc_reader, Interruptor, ReflectorOpts,
+    tracing::try_init_tracing_subscriber, trc_reader, Interruptor, ReflectorOpts, TimelineAttrKey,
     TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use std::path::PathBuf;
@@ -65,7 +66,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         }
     })?;
 
-    let cfg = TraceRecorderConfig::load_merge_with_opts(
+    let mut cfg = TraceRecorderConfig::load_merge_with_opts(
         TraceRecorderConfigEntry::Importer,
         opts.rf_opts,
         opts.tr_opts,
@@ -80,6 +81,20 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         struct MissingFilePathError;
         cfg.plugin.import.file.clone().ok_or(MissingFilePathError)?
     };
+
+    if let Some(file_name) = file_path.file_name() {
+        cfg.ingest
+            .timeline_attributes
+            .additional_timeline_attributes
+            .push(AttrKeyEqValuePair(
+                TimelineAttrKey::ImportFile.into_cfg_attr(),
+                file_name
+                    .to_os_string()
+                    .to_string_lossy()
+                    .to_string()
+                    .into(),
+            ));
+    }
 
     let f = File::open(&file_path).map_err(|e| FileOpenError::Io(file_path.clone(), e))?;
     let mut join_handle = tokio::spawn(async move {

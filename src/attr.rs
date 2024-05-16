@@ -1,4 +1,4 @@
-use auxon_sdk::ingest_protocol::InternedAttrKey;
+use auxon_sdk::{api::AttrKey, ingest_protocol::InternedAttrKey};
 use derive_more::Display;
 use std::collections::HashMap;
 
@@ -33,9 +33,6 @@ pub enum TimelineAttrKey {
     Frequency,
     #[display(fmt = "timeline.internal.trace_recorder.isr_tail_chaining_threshold")]
     IsrChainingThreshold,
-
-    #[display(fmt = "timeline.internal.trace_recorder.plugin.version")]
-    PluginVersion,
 
     #[display(fmt = "timeline.internal.trace_recorder.object_handle")]
     ObjectHandle,
@@ -72,8 +69,21 @@ pub enum TimelineAttrKey {
     #[display(fmt = "timeline.internal.trace_recorder.latest_timestamp")]
     LatestTimestamp,
 
+    #[display(fmt = "timeline.trace_recorder.plugin.version")]
+    PluginVersion,
+    #[display(fmt = "timeline.trace_recorder.import.file")]
+    ImportFile,
+    #[display(fmt = "timeline.trace_recorder.tcp_collector.remote")]
+    TcpRemote,
+
     #[display(fmt = "timeline.{_0}")]
     Custom(String),
+}
+
+impl TimelineAttrKey {
+    pub fn into_cfg_attr(&self) -> AttrKey {
+        AttrKey::new(self.to_string().trim_start_matches("timeline.").to_owned())
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug, Display)]
