@@ -97,6 +97,7 @@ impl ContextManager {
             cfg,
             common_timeline_attributes,
             global_ordering: 0,
+            // NOTE: timestamp/event trackers get re-initialized on the first event
             time_rollover_tracker: StreamingInstant::zero(),
             event_counter_tracker: TrackingEventCounter::zero(),
             degraded: false,
@@ -164,6 +165,12 @@ impl ContextManager {
 
             self.event_counter_tracker
                 .set_initial_count(event.event_count());
+
+            self.time_rollover_tracker = StreamingInstant::new(
+                event.timestamp().ticks() as u32,
+                trd.timestamp_info.timer_wraparounds,
+            );
+
             self.first_event_observed = true;
             None
         } else {
