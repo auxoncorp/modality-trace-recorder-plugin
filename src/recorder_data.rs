@@ -652,6 +652,10 @@ impl RecorderDataExt for RecorderData {
                 .lossy_timestamp_ns(self.timestamp_info.latest_timestamp)
                 .into(),
         );
+        attrs.insert(
+            TimelineAttrKey::InteractionMode,
+            cfg.plugin.interaction_mode.to_string().into(),
+        );
 
         merge_cfg_attributes(
             &cfg.ingest

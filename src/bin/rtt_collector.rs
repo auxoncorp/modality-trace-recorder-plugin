@@ -8,7 +8,7 @@ use probe_rs::{
     config::MemoryRegion,
     probe::{list::Lister, DebugProbeSelector, WireProtocol},
     rtt::{Rtt, ScanRegion, UpChannel},
-    Core, Permissions, RegisterValue, Session, VectorCatchCondition,
+    Core, CoreStatus, HaltReason, Permissions, RegisterValue, Session, VectorCatchCondition,
 };
 use ratelimit::Ratelimiter;
 use simple_moving_average::{NoSumSMA, SMA};
@@ -20,7 +20,7 @@ use std::{
     time::{Duration, Instant},
 };
 use thiserror::Error;
-use tracing::{debug, error, info, trace};
+use tracing::{debug, error, info, trace, warn};
 
 /// Collect trace recorder streaming protocol data from an on-device RTT buffer
 #[derive(Parser, Debug, Clone)]
@@ -51,6 +51,30 @@ struct Opts {
         help_heading = "STREAMING PORT CONFIGURATION"
     )]
     pub control_block_address: Option<u32>,
+
+    /// Extract the location in memory of the RTT control block debug symbol from an ELF file.
+    #[clap(long, name = "elf-file", help_heading = "STREAMING PORT CONFIGURATION")]
+    pub elf_file: Option<PathBuf>,
+
+    /// Set a breakpoint on the address of the given symbol used to signal
+    /// when to optionally configure the channel mode and start reading.
+    ///
+    /// Can be an absolute address or symbol name.
+    #[arg(
+        long,
+        name = "breakpoint",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub breakpoint: Option<String>,
+
+    /// Assume thumb mode when resolving symbols from the ELF file
+    /// for breakpoint addresses.
+    #[arg(
+        long,
+        requires = "elf-file",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub thumb: bool,
 
     /// Disable sending control plane commands to the target.
     /// By default, CMD_SET_ACTIVE is sent on startup and shutdown to
@@ -219,6 +243,15 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(addr) = opts.control_block_address {
         trc_cfg.plugin.rtt_collector.control_block_address = addr.into();
     }
+    if let Some(elf_file) = opts.elf_file.as_ref() {
+        trc_cfg.plugin.rtt_collector.elf_file = Some(elf_file.clone());
+    }
+    if let Some(breakpoint) = opts.breakpoint.as_ref() {
+        trc_cfg.plugin.rtt_collector.breakpoint = Some(breakpoint.clone());
+    }
+    if opts.thumb {
+        trc_cfg.plugin.rtt_collector.thumb = true;
+    }
     if opts.disable_control_plane {
         trc_cfg.plugin.rtt_collector.disable_control_plane = true;
     }
@@ -332,6 +365,17 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             "Using explicit RTT control block address"
         );
         rtt_scan_region = ScanRegion::Exact(user_provided_addr);
+    } else if let Some(Ok(mut file)) = trc_cfg
+        .plugin
+        .rtt_collector
+        .elf_file
+        .as_ref()
+        .map(fs::File::open)
+    {
+        if let Some(rtt_addr) = get_rtt_symbol(&mut file) {
+            debug!(rtt_addr = rtt_addr, "Found RTT symbol in ELF file");
+            rtt_scan_region = ScanRegion::Exact(rtt_addr as _);
+        }
     }
 
     let memory_map = session.target().memory_map.clone();
@@ -346,15 +390,58 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     core.disable_vector_catch(VectorCatchCondition::All)?;
     core.clear_all_hw_breakpoints()?;
 
+    if let Some(bp_sym_or_addr) = &trc_cfg.plugin.rtt_collector.breakpoint {
+        let num_bp = core.available_breakpoint_units()?;
+
+        let bp_addr = if let Some(bp_addr) = bp_sym_or_addr
+            .parse::<u64>()
+            .ok()
+            .or(u64::from_str_radix(bp_sym_or_addr.trim_start_matches("0x"), 16).ok())
+        {
+            bp_addr
+        } else {
+            let mut file = fs::File::open(
+                trc_cfg
+                    .plugin
+                    .rtt_collector
+                    .elf_file
+                    .as_ref()
+                    .ok_or(Error::MissingElfFile)?,
+            )?;
+            let bp_addr = get_symbol(&mut file, bp_sym_or_addr)
+                .ok_or_else(|| Error::ElfSymbol(bp_sym_or_addr.to_owned()))?;
+            if trc_cfg.plugin.rtt_collector.thumb {
+                bp_addr & !1
+            } else {
+                bp_addr
+            }
+        };
+
+        debug!(
+            available_breakpoints = num_bp,
+            symbol_or_addr = bp_sym_or_addr,
+            addr = format_args!("0x{:X}", bp_addr),
+            "Setting breakpoint to do RTT channel setup"
+        );
+        core.set_hw_breakpoint(bp_addr)?;
+    }
+
     let mut rtt = match trc_cfg.plugin.rtt_collector.attach_timeout {
         Some(to) if !to.0.is_zero() => {
             attach_retry_loop(&mut core, &memory_map, &rtt_scan_region, to.0)?
         }
         _ => {
             debug!("Attaching to RTT");
-            Rtt::attach(&mut core, &memory_map)?
+            Rtt::attach_region(&mut core, &memory_map, &rtt_scan_region)?
         }
     };
+
+    let up_channel = rtt
+        .up_channels()
+        .take(trc_cfg.plugin.rtt_collector.up_channel)
+        .ok_or_else(|| Error::UpChannelInvalid(trc_cfg.plugin.rtt_collector.up_channel))?;
+    let up_channel_mode = up_channel.mode(&mut core)?;
+    debug!(channel = up_channel.number(), mode = ?up_channel_mode, buffer_size = up_channel.buffer_size(), "Opened up channel");
 
     if trc_cfg.plugin.rtt_collector.reset || trc_cfg.plugin.rtt_collector.attach_under_reset {
         let sp_reg = core.stack_pointer();
@@ -365,12 +452,34 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         core.run()?;
     }
 
-    let up_channel = rtt
-        .up_channels()
-        .take(trc_cfg.plugin.rtt_collector.up_channel)
-        .ok_or_else(|| Error::UpChannelInvalid(trc_cfg.plugin.rtt_collector.up_channel))?;
-    let up_channel_mode = up_channel.mode(&mut core)?;
-    debug!(channel = up_channel.number(), mode = ?up_channel_mode, buffer_size = up_channel.buffer_size(), "Opened up channel");
+    if trc_cfg.plugin.rtt_collector.breakpoint.is_some() {
+        debug!("Waiting for breakpoint");
+        'bp_loop: loop {
+            if intr.is_set() {
+                break;
+            }
+
+            match core.status()? {
+                CoreStatus::Running => (),
+                CoreStatus::Halted(halt_reason) => match halt_reason {
+                    HaltReason::Breakpoint(_) => break 'bp_loop,
+                    _ => {
+                        warn!(reason = ?halt_reason, "Unexpected halt reason");
+                        break 'bp_loop;
+                    }
+                },
+                state => {
+                    warn!(state = ?state, "Core is in an unexpected state");
+                    break 'bp_loop;
+                }
+            }
+
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        debug!("Run core after breakpoint setup");
+        core.run()?;
+    }
 
     if !trc_cfg.plugin.rtt_collector.disable_control_plane {
         let down_channel = rtt
@@ -479,6 +588,26 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn get_rtt_symbol<T: io::Read + io::Seek>(file: &mut T) -> Option<u64> {
+    get_symbol(file, "_SEGGER_RTT")
+}
+
+fn get_symbol<T: io::Read + io::Seek>(file: &mut T, symbol: &str) -> Option<u64> {
+    let mut buffer = Vec::new();
+    if file.read_to_end(&mut buffer).is_ok() {
+        if let Ok(binary) = goblin::elf::Elf::parse(buffer.as_slice()) {
+            for sym in &binary.syms {
+                if let Some(name) = binary.strtab.get_at(sym.st_name) {
+                    if name == symbol {
+                        return Some(sym.st_value);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
 fn attach_retry_loop(
     core: &mut Core,
     memory_map: &[MemoryRegion],
@@ -520,6 +649,12 @@ enum Error {
 
     #[error("The RTT up channel ({0}) is invalid")]
     UpChannelInvalid(usize),
+
+    #[error("A breakpoint symbol was specified but no ELF file was provided. Specify the file path in the configuration file or command line arguments")]
+    MissingElfFile,
+
+    #[error("Could not locate the address of symbol '{0}' in the ELF file")]
+    ElfSymbol(String),
 
     #[error("Encountered an error with the probe. {0}")]
     ProbeRs(#[from] probe_rs::Error),

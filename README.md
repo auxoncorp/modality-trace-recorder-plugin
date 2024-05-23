@@ -375,6 +375,11 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-rt
   - `chip-description-path` — Provides custom target descriptions based on CMSIS Pack files.
     See the [probe-rs target extraction](https://probe.rs/docs/knowledge-base/cmsis-packs/#target-extraction) section for
     more information.
+  - `control-block-address` — Use the provided RTT control block address instead of scanning the target memory for it.
+  - `elf-file` — Extract the location in memory of the RTT control block debug symbol from an ELF file.
+  - `thumb` — Assume thumb mode when resolving symbols from the ELF file for breakpoint addresses.
+  - `setup-on-breakpoint` — Set a breakpoint on the address of the given symbol used to signal
+    when to optionally configure the channel mode and start reading.
   - `rtt-poll-interval` — The host-side RTT polling interval. The default value is 1ms.
     Accepts durations like "10ms" or "1minute 2seconds 22ms".
   - `rtt-reader-buffer-size` — Size of the host-side RTT buffer used to store data read off the target.

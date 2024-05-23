@@ -75,6 +75,8 @@ pub enum TimelineAttrKey {
     ImportFile,
     #[display(fmt = "timeline.trace_recorder.tcp_collector.remote")]
     TcpRemote,
+    #[display(fmt = "timeline.internal.trace_recorder.interaction_mode")]
+    InteractionMode,
 
     #[display(fmt = "timeline.{_0}")]
     Custom(String),

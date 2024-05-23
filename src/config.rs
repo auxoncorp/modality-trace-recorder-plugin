@@ -139,6 +139,9 @@ pub struct RttCollectorConfig {
     pub reset: bool,
     pub attach_under_reset: bool,
     pub chip_description_path: Option<PathBuf>,
+    pub elf_file: Option<PathBuf>,
+    pub thumb: bool,
+    pub breakpoint: Option<String>,
     pub rtt_read_buffer_size: Option<usize>,
     pub rtt_poll_interval: Option<HumanTime>,
     pub metrics: bool,
@@ -169,6 +172,9 @@ impl Default for RttCollectorConfig {
             reset: false,
             attach_under_reset: false,
             chip_description_path: None,
+            elf_file: None,
+            thumb: false,
+            breakpoint: None,
             rtt_read_buffer_size: None,
             rtt_poll_interval: None,
             metrics: false,
@@ -690,6 +696,9 @@ chip-description-path = "/tmp/S32K_Series.yaml"
 rtt-poll-interval = "1ms"
 rtt-read-buffer-size = 1024
 metrics = true
+elf-file = 'fw.elf'
+thumb = true
+breakpoint = "main"
 
     [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
@@ -1114,6 +1123,9 @@ metrics = true
                         reset: true,
                         attach_under_reset: true,
                         chip_description_path: PathBuf::from("/tmp/S32K_Series.yaml").into(),
+                        elf_file: PathBuf::from("fw.elf").into(),
+                        thumb: true,
+                        breakpoint: Some("main".to_owned()),
                         rtt_poll_interval: HumanTime::from_str("1ms").unwrap().into(),
                         rtt_read_buffer_size: 1024.into(),
                         metrics: true,

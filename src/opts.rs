@@ -400,6 +400,15 @@ impl FromStr for InteractionMode {
     }
 }
 
+impl std::fmt::Display for InteractionMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            InteractionMode::FullyLinearized => f.write_str("fully-linearized"),
+            InteractionMode::Ipc => f.write_str("ipc"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
