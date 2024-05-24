@@ -694,7 +694,8 @@ impl TrcRttReader {
         rtt_buffer_size: usize,
         metrics: Option<Metrics>,
     ) -> Result<Self, Error> {
-        debug!(rtt_buffer_size, data_poll_interval = ?poll_interval, no_data_poll_interval = ?Self::NO_DATA_POLL_INTERVAL, "Setup RTT reader");
+        debug!(rtt_buffer_size, data_poll_interval = ?poll_interval, no_data_poll_interval = ?Self::NO_DATA_POLL_INTERVAL,
+            metrics = metrics.is_some(), "Setup RTT reader");
         let ratelimiter = Ratelimiter::builder(1, poll_interval)
             .initial_available(1)
             .build()?;
@@ -822,9 +823,10 @@ impl Metrics {
         self.bytes_read += bytes_read as u64;
         if bytes_read == 0 {
             self.read_zero_cnt += 1;
-        } else if bytes_read as u64 == self.rtt_buffer_size {
-            self.read_max_cnt += 1;
         } else {
+            if bytes_read as u64 == self.rtt_buffer_size {
+                self.read_max_cnt += 1;
+            }
             self.sma.add_sample(bytes_read as f64);
         }
 
