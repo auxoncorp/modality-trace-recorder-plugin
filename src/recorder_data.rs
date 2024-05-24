@@ -401,6 +401,98 @@ impl RecorderDataExt for RecorderData {
                 }
             }
 
+            Event::EventGroupCreate(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::EventGroupName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::EventGroupBits,
+                    AttrVal::Integer(ev.event_bits.into()),
+                );
+            }
+
+            Event::EventGroupSync(ev)
+            | Event::EventGroupWaitBits(ev)
+            | Event::EventGroupClearBits(ev)
+            | Event::EventGroupClearBitsFromIsr(ev)
+            | Event::EventGroupSetBits(ev)
+            | Event::EventGroupSetBitsFromIsr(ev)
+            | Event::EventGroupSyncBlock(ev)
+            | Event::EventGroupWaitBitsBlock(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::EventGroupName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::EventGroupBits,
+                    AttrVal::Integer(ev.bits.into()),
+                );
+            }
+
+            Event::MessageBufferCreate(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::MessageBufferName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::MessageBufferSize,
+                    AttrVal::Integer(ev.buffer_size.into()),
+                );
+            }
+
+            Event::MessageBufferSend(ev)
+            | Event::MessageBufferSendFromIsr(ev)
+            | Event::MessageBufferReceive(ev)
+            | Event::MessageBufferReceiveFromIsr(ev)
+            | Event::MessageBufferReset(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::MessageBufferName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::MessageBufferBytesInBuffer,
+                    AttrVal::Integer(ev.bytes_in_buffer.into()),
+                );
+            }
+
+            Event::MessageBufferSendBlock(ev) | Event::MessageBufferReceiveBlock(ev) => {
+                if let Some(name) = ev.name.as_ref() {
+                    attrs.insert(
+                        EventAttrKey::MessageBufferName,
+                        AttrVal::String(name.to_string().into()),
+                    );
+                }
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+            }
+
             Event::User(ev) => {
                 if cfg.user_event_channel {
                     // Use the channel as the event name

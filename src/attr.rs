@@ -176,6 +176,18 @@ pub enum EventAttrKey {
     #[display(fmt = "event.count")]
     SemaphoreCount,
 
+    #[display(fmt = "event.event_group")]
+    EventGroupName,
+    #[display(fmt = "event.bits")]
+    EventGroupBits,
+
+    #[display(fmt = "event.message_buffer")]
+    MessageBufferName,
+    #[display(fmt = "event.buffer_size")]
+    MessageBufferSize,
+    #[display(fmt = "event.bytes_in_buffer")]
+    MessageBufferBytesInBuffer,
+
     #[display(fmt = "event.internal.trace_recorder.ticks_to_wait")]
     TicksToWait,
     #[display(fmt = "event.internal.trace_recorder.ns_to_wait")]
