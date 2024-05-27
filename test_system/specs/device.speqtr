@@ -13,6 +13,9 @@ behavior "Tracing"
         AND start.internal.trace_recorder.type = "TRACE_START"
         AND start.timeline.internal.trace_recorder.kernel.port = "FreeRTOS"
         AND start.timeline.internal.trace_recorder.protocol = "streaming"
+        AND start.timeline.internal.trace_recorder.cpu_utilization.measurement_window = 0.5s
+        AND start.timeline.internal.trace_recorder.cpu_utilization.measurement_window.ticks = 240000
+        AND start.timeline.time_resolution = 2083ns
     end
 end
 

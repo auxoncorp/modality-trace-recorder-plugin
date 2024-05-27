@@ -9,15 +9,15 @@ extern "C" {
 #define configDEVICE_NICK_NAME configHOST_NAME
 
 #define SENSOR_NAME "Sensor"
-#define SENSOR_PRIO (tskIDLE_PRIORITY + 2)
+#define SENSOR_PRIO (tskIDLE_PRIORITY + 4)
 #define SENSOR_STACK_SIZE configMINIMAL_STACK_SIZE
 
 #define ACTUATOR_NAME "Actuator"
-#define ACTUATOR_PRIO (tskIDLE_PRIORITY + 2)
+#define ACTUATOR_PRIO (tskIDLE_PRIORITY + 4)
 #define ACTUATOR_STACK_SIZE configMINIMAL_STACK_SIZE
 
 #define COMMS_NAME "Comms"
-#define COMMS_PRIO (tskIDLE_PRIORITY + 3)
+#define COMMS_PRIO (tskIDLE_PRIORITY + 4)
 #define COMMS_STACK_SIZE configMINIMAL_STACK_SIZE
 
 #define STATS_NAME "Stats"

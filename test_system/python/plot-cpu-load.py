@@ -16,10 +16,10 @@ parser = argparse.ArgumentParser(description='Generate CPU load plot')
 parser.add_argument('--html', dest="html_file", metavar='FILE', default=None, help='Generate an HTML file.')
 args = parser.parse_args()
 
-results = cli.query('* @ * (_.task != "IDLE" AND exists(_.cpu_utilization)) AS s AGGREGATE distinct(s.task)', normalize_json=False)
+results = cli.query('* @ * (exists(_.cpu_utilization)) AS s AGGREGATE distinct(s.task)', normalize_json=False)
 tasks = results[0]['value']['Set']
 
-results = cli.query('* @ * (_.task != "IDLE" AND exists(_.cpu_utilization))')
+results = cli.query('* @ * (exists(_.cpu_utilization))')
 results = results.reindex(columns=[
     'attributes.event.total_runtime.Timestamp',
     'attributes.event.task',

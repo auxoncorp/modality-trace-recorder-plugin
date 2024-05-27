@@ -324,7 +324,7 @@ impl TraceRecorderConfig {
             cpu_utilization_measurement_window: if let Some(mw) =
                 tr_opts.cpu_utilization_measurement_window.as_ref()
             {
-                Some(HumanTime(mw.clone()))
+                Some(HumanTime(*mw))
             } else {
                 cfg_plugin.cpu_utilization_measurement_window
             },

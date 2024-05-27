@@ -8,7 +8,7 @@ use crate::{
         ContextHandle, EventAttributes, NanosecondsExt, RecorderDataExt, TimelineAttributes,
     },
 };
-use auxon_sdk::api::{AttrVal, Nanoseconds, TimelineId};
+use auxon_sdk::api::{Nanoseconds, TimelineId};
 use std::collections::{HashMap, VecDeque};
 use trace_recorder_parser::{
     streaming::event::{Event, EventCode, EventType, TrackingEventCounter},
@@ -297,14 +297,13 @@ impl ContextManager {
         // Add timerstamp attrs
         attrs.insert(EventAttrKey::TimerTicks, timer_ticks.ticks().into());
         attrs.insert(EventAttrKey::TimestampTicks, timestamp.ticks().into());
-        attrs.insert(
-            EventAttrKey::Timestamp,
-            AttrVal::Timestamp(
-                trd.timestamp_info
-                    .timer_frequency
-                    .lossy_timestamp_ns(timestamp),
-            ),
-        );
+        if let Some(ns) = trd
+            .timestamp_info
+            .timer_frequency
+            .convert_timestamp(timestamp)
+        {
+            attrs.insert(EventAttrKey::Timestamp, ns.into());
+        }
 
         let ctx_switch_outcome = self.handle_context_switch(event, trd)?;
 
@@ -619,26 +618,25 @@ impl ContextEvent {
             EventAttrKey::TotalRuntimeTicks,
             total_runtime.ticks().into(),
         );
-        self.attributes.insert(
-            EventAttrKey::TotalRuntime,
-            AttrVal::Timestamp(
-                trd.timestamp_info
-                    .timer_frequency
-                    .lossy_timestamp_ns(total_runtime),
-            ),
-        );
+        if let Some(ns) = trd
+            .timestamp_info
+            .timer_frequency
+            .convert_timestamp(total_runtime)
+        {
+            self.attributes
+                .insert(EventAttrKey::TotalRuntime, ns.into());
+        }
         self.attributes.insert(
             EventAttrKey::RuntimeTicks,
             ctx_stats.total_runtime.ticks().into(),
         );
-        self.attributes.insert(
-            EventAttrKey::Runtime,
-            AttrVal::Timestamp(
-                trd.timestamp_info
-                    .timer_frequency
-                    .lossy_timestamp_ns(ctx_stats.total_runtime),
-            ),
-        );
+        if let Some(ns) = trd
+            .timestamp_info
+            .timer_frequency
+            .convert_timestamp(ctx_stats.total_runtime)
+        {
+            self.attributes.insert(EventAttrKey::Runtime, ns.into());
+        }
 
         if let Some(win) = ctx_stats.last_runtime_window.as_ref() {
             let ctx_runtime = win.0;
@@ -648,25 +646,25 @@ impl ContextEvent {
                 EventAttrKey::RuntimeInWindowTicks,
                 ctx_runtime.ticks().into(),
             );
-            self.attributes.insert(
-                EventAttrKey::RuntimeInWindow,
-                AttrVal::Timestamp(
-                    trd.timestamp_info
-                        .timer_frequency
-                        .lossy_timestamp_ns(ctx_runtime),
-                ),
-            );
+            if let Some(ns) = trd
+                .timestamp_info
+                .timer_frequency
+                .convert_timestamp(ctx_runtime)
+            {
+                self.attributes
+                    .insert(EventAttrKey::RuntimeInWindow, ns.into());
+            }
 
             self.attributes
                 .insert(EventAttrKey::RuntimeWindowTicks, window_dur.ticks().into());
-            self.attributes.insert(
-                EventAttrKey::RuntimeWindow,
-                AttrVal::Timestamp(
-                    trd.timestamp_info
-                        .timer_frequency
-                        .lossy_timestamp_ns(window_dur),
-                ),
-            );
+            if let Some(ns) = trd
+                .timestamp_info
+                .timer_frequency
+                .convert_timestamp(window_dur)
+            {
+                self.attributes
+                    .insert(EventAttrKey::RuntimeWindow, ns.into());
+            }
 
             if window_dur.ticks() > 0 {
                 let runtime_utilization = ctx_runtime.ticks() as f64 / window_dur.ticks() as f64;
