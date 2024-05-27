@@ -298,6 +298,13 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         trc_cfg.plugin.rtt_collector.metrics = true;
     }
 
+    if let Some(poll_interval) = trc_cfg.plugin.rtt_collector.rtt_poll_interval {
+        if poll_interval.0.is_zero() {
+            warn!("Poll interval cannot be zero, using default 1ns");
+            trc_cfg.plugin.rtt_collector.rtt_poll_interval = Some(Duration::from_nanos(1).into());
+        }
+    }
+
     if trc_cfg
         .plugin
         .rtt_collector

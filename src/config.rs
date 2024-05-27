@@ -15,6 +15,7 @@ use std::env;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::time::Duration;
 use url::Url;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
@@ -212,6 +213,12 @@ impl FromStr for HumanTime {
     type Err = humantime::DurationError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self(humantime::Duration::from_str(s)?))
+    }
+}
+
+impl From<Duration> for HumanTime {
+    fn from(value: Duration) -> Self {
+        Self(value.into())
     }
 }
 
