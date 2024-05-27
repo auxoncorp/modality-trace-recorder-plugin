@@ -78,6 +78,11 @@ pub enum TimelineAttrKey {
     #[display(fmt = "timeline.internal.trace_recorder.interaction_mode")]
     InteractionMode,
 
+    #[display(fmt = "timeline.internal.trace_recorder.cpu_utilization.measurement_window.ticks")]
+    CpuUtilizationMeasurementWindowTicks,
+    #[display(fmt = "timeline.internal.trace_recorder.cpu_utilization.measurement_window")]
+    CpuUtilizationMeasurementWindow,
+
     #[display(fmt = "timeline.{_0}")]
     Custom(String),
 }
@@ -236,6 +241,14 @@ pub enum EventAttrKey {
     RuntimeTicks,
     #[display(fmt = "event.runtime")]
     Runtime,
+    #[display(fmt = "event.internal.trace_recorder.runtime_window.ticks")]
+    RuntimeWindowTicks,
+    #[display(fmt = "event.runtime_window")]
+    RuntimeWindow,
+    #[display(fmt = "event.internal.trace_recorder.runtime_in_window.ticks")]
+    RuntimeInWindowTicks,
+    #[display(fmt = "event.runtime_in_window")]
+    RuntimeInWindow,
     #[display(fmt = "event.cpu_utilization")]
     CpuUtilization,
 

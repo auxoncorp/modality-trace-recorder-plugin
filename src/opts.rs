@@ -221,6 +221,14 @@ pub struct TraceRecorderOpts {
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub interaction_mode: Option<InteractionMode>,
+
+    /// CPU utilization measurement window duration (Default is 500ms).
+    #[clap(
+        long,
+        name = "cpu-utilization-measurement-window",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub cpu_utilization_measurement_window: Option<humantime::Duration>,
 }
 
 /// A map of trace recorder USER_EVENT channels/format-strings to Modality event names

@@ -1,5 +1,5 @@
 use crate::{
-    attr::EventAttrKey,
+    attr::{EventAttrKey, TimelineAttrKey},
     config::TraceRecorderConfig,
     deviant_event_parser::DeviantEventParser,
     error::Error,
@@ -8,13 +8,13 @@ use crate::{
         ContextHandle, EventAttributes, NanosecondsExt, RecorderDataExt, TimelineAttributes,
     },
 };
-use auxon_sdk::api::{AttrVal, TimelineId};
+use auxon_sdk::api::{AttrVal, Nanoseconds, TimelineId};
 use std::collections::{HashMap, VecDeque};
 use trace_recorder_parser::{
     streaming::event::{Event, EventCode, EventType, TrackingEventCounter},
     streaming::RecorderData,
     time::{StreamingInstant, Timestamp},
-    types::ObjectHandle,
+    types::{ObjectClass, ObjectHandle},
 };
 use tracing::{debug, trace, warn};
 
@@ -60,12 +60,16 @@ pub struct ContextManager {
     queue_pending_interactions: HashMap<QueueHandle, VecDeque<Interaction>>,
 
     // State for stats
+    utilization_measurement_window_ticks: u64,
     last_running_timestamp: Timestamp,
+    utilization_measurement_window_start: Timestamp,
     context_stats: HashMap<ContextHandle, ContextStats>,
 }
 
 impl ContextManager {
     const UNKNOWN_CONTEXT: &'static str = "UNKNOWN_CONTEXT";
+    const DEFAULT_MEASURMENT_WINDOW_MS: u64 = 500;
+    const DEFAULT_MEASURMENT_WINDOW_TICKS: u64 = 1_000_000; // from a hat
 
     pub fn new(mut cfg: TraceRecorderConfig, trd: &RecorderData) -> Result<Self, Error> {
         if cfg.plugin.interaction_mode != InteractionMode::FullyLinearized {
@@ -81,6 +85,28 @@ impl ContextManager {
             }
         }
 
+        let utilization_measurement_window_ms =
+            if let Some(cfg_ns) = cfg.plugin.cpu_utilization_measurement_window.as_ref() {
+                // min == 1ms
+                std::cmp::max(cfg_ns.0.as_millis() as u64, 1)
+            } else {
+                Self::DEFAULT_MEASURMENT_WINDOW_MS
+            };
+        let utilization_measurement_window_ticks = if trd
+            .timestamp_info
+            .timer_frequency
+            .is_unitless()
+        {
+            warn!(
+                ticks = Self::DEFAULT_MEASURMENT_WINDOW_TICKS,
+                "Target didn't report the timestamp frequency, CPU utilization will be measuremnt over default ticks");
+            Self::DEFAULT_MEASURMENT_WINDOW_TICKS
+        } else {
+            let ticks_per_ms = u64::from(trd.timestamp_info.timer_frequency.get_raw()) / 1_000;
+            ticks_per_ms * utilization_measurement_window_ms
+        };
+        let utilization_measurement_window_ns = utilization_measurement_window_ms * 1_000_000;
+
         let startup_task_handle = trd.startup_task_handle()?;
 
         let deviant_event_parser = if let Some(base_event_id) = cfg.plugin.deviant_event_id_base {
@@ -92,7 +118,16 @@ impl ContextManager {
             None
         };
 
-        let common_timeline_attributes = trd.common_timeline_attributes(&cfg);
+        let mut common_timeline_attributes = trd.common_timeline_attributes(&cfg);
+        common_timeline_attributes.insert(
+            TimelineAttrKey::CpuUtilizationMeasurementWindowTicks,
+            utilization_measurement_window_ticks.into(),
+        );
+        common_timeline_attributes.insert(
+            TimelineAttrKey::CpuUtilizationMeasurementWindow,
+            Nanoseconds::from(utilization_measurement_window_ns).into(),
+        );
+
         Ok(Self {
             cfg,
             common_timeline_attributes,
@@ -108,7 +143,9 @@ impl ContextManager {
             active_context: ContextHandle::Task(startup_task_handle),
             notif_pending_interactions: Default::default(),
             queue_pending_interactions: Default::default(),
-            last_running_timestamp: DurationTicks::zero(),
+            utilization_measurement_window_ticks,
+            last_running_timestamp: Timestamp::zero(),
+            utilization_measurement_window_start: Timestamp::zero(),
             context_stats: Default::default(),
         })
     }
@@ -157,12 +194,6 @@ impl ContextManager {
                 ));
             }
 
-            // Setup initial root/startup task
-            self.active_context = ContextHandle::Task(self.startup_task_handle);
-            self.alloc_context(self.active_context, trd)?;
-            self.context_stats
-                .insert(self.active_context, ContextStats::new(Timestamp::zero()));
-
             self.event_counter_tracker
                 .set_initial_count(event.event_count());
 
@@ -170,6 +201,31 @@ impl ContextManager {
                 event.timestamp().ticks() as u32,
                 trd.timestamp_info.timer_wraparounds,
             );
+
+            self.utilization_measurement_window_start = self.time_rollover_tracker.to_timestamp();
+            for s in self.context_stats.values_mut() {
+                s.reset_runtime_since_window_start();
+            }
+
+            // Setup initial root/startup task
+            if let Event::TraceStart(ev) = event {
+                let class = trd
+                    .entry_table
+                    .class(ev.current_task_handle)
+                    .unwrap_or(ObjectClass::Task);
+                if class == ObjectClass::Task {
+                    self.active_context = ContextHandle::Task(ev.current_task_handle);
+                } else {
+                    self.active_context = ContextHandle::Isr(ev.current_task_handle);
+                }
+            } else {
+                self.active_context = ContextHandle::Task(self.startup_task_handle);
+            }
+            self.alloc_context(self.active_context, trd)?;
+            let _ctx_stats = self
+                .context_stats
+                .entry(self.active_context)
+                .or_insert_with(|| ContextStats::new(self.time_rollover_tracker.to_timestamp()));
 
             self.first_event_observed = true;
             None
@@ -259,8 +315,16 @@ impl ContextManager {
             add_previous_event_nonce: false,
         };
 
-        // Add status attributes when we get a context switch event
+        // Add stats attributes when we get a context switch event
         if matches!(ctx_switch_outcome, ContextSwitchOutcome::Different(_)) {
+            let diff = self.last_running_timestamp - self.utilization_measurement_window_start;
+            if diff.ticks() > self.utilization_measurement_window_ticks {
+                for s in self.context_stats.values_mut() {
+                    s.update_runtime_window(diff);
+                }
+                self.utilization_measurement_window_start = self.last_running_timestamp;
+            }
+
             if let Some(ctx_stats) = self.context_stats.get(&self.active_context) {
                 ctx_event.add_stats(trd, self.last_running_timestamp, ctx_stats);
             }
@@ -575,10 +639,42 @@ impl ContextEvent {
                     .lossy_timestamp_ns(ctx_stats.total_runtime),
             ),
         );
-        let runtime_utilization =
-            ctx_stats.total_runtime.ticks() as f64 / total_runtime.ticks() as f64;
-        self.attributes
-            .insert(EventAttrKey::CpuUtilization, runtime_utilization.into());
+
+        if let Some(win) = ctx_stats.last_runtime_window.as_ref() {
+            let ctx_runtime = win.0;
+            let window_dur = win.1;
+
+            self.attributes.insert(
+                EventAttrKey::RuntimeInWindowTicks,
+                ctx_runtime.ticks().into(),
+            );
+            self.attributes.insert(
+                EventAttrKey::RuntimeInWindow,
+                AttrVal::Timestamp(
+                    trd.timestamp_info
+                        .timer_frequency
+                        .lossy_timestamp_ns(ctx_runtime),
+                ),
+            );
+
+            self.attributes
+                .insert(EventAttrKey::RuntimeWindowTicks, window_dur.ticks().into());
+            self.attributes.insert(
+                EventAttrKey::RuntimeWindow,
+                AttrVal::Timestamp(
+                    trd.timestamp_info
+                        .timer_frequency
+                        .lossy_timestamp_ns(window_dur),
+                ),
+            );
+
+            if window_dur.ticks() > 0 {
+                let runtime_utilization = ctx_runtime.ticks() as f64 / window_dur.ticks() as f64;
+
+                self.attributes
+                    .insert(EventAttrKey::CpuUtilization, runtime_utilization.into());
+            }
+        }
     }
 }
 
@@ -612,28 +708,60 @@ impl TimelineMeta {
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 struct ContextStats {
+    /// When the context was last switched in
     last_timestamp: Timestamp,
+
+    /// Total time the context has been in the running state
     total_runtime: DurationTicks,
+
+    /// Time the context has been in the running state since
+    /// the window start
+    runtime_since_window_start: ContextRunningDuration,
+
+    /// Previously observed window state: time this context
+    /// was in the running state and total duration
+    /// of the window
+    last_runtime_window: Option<(ContextRunningDuration, RuntimeWindowDuration)>,
 }
+
+type RuntimeWindowDuration = DurationTicks;
+type ContextRunningDuration = DurationTicks;
 
 impl ContextStats {
     fn new(last_timestamp: Timestamp) -> Self {
         Self {
             last_timestamp,
             total_runtime: DurationTicks::zero(),
+            runtime_since_window_start: DurationTicks::zero(),
+            last_runtime_window: None,
         }
     }
 
+    /// Called when runtime window is reset
+    fn reset_runtime_since_window_start(&mut self) {
+        self.runtime_since_window_start = DurationTicks::zero();
+        self.last_runtime_window = None;
+    }
+
+    /// Called when a new window interval starts
+    fn update_runtime_window(&mut self, runtime_dur: RuntimeWindowDuration) {
+        self.last_runtime_window = Some((self.runtime_since_window_start, runtime_dur));
+        self.runtime_since_window_start = DurationTicks::zero();
+    }
+
+    /// Called when this context is switched in
     fn set_last_timestamp(&mut self, last_timestamp: Timestamp) {
         self.last_timestamp = last_timestamp;
     }
 
+    /// Called when this context is switched out
     fn update(&mut self, timestamp: Timestamp) {
         if timestamp < self.last_timestamp {
             warn!("Stats timestamp went backwards");
         } else {
             let diff = timestamp - self.last_timestamp;
             self.total_runtime += diff;
+            self.runtime_since_window_start += diff;
             self.last_timestamp = timestamp;
         }
     }

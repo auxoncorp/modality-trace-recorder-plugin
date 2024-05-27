@@ -50,6 +50,7 @@ pub struct PluginConfig {
     pub user_event_formatted_string_rename_map: RenameMap,
     pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
     pub interaction_mode: InteractionMode,
+    pub cpu_utilization_measurement_window: Option<HumanTime>,
 
     pub import: ImportConfig,
     pub tcp_collector: TcpCollectorConfig,
@@ -320,6 +321,13 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.interaction_mode
             },
+            cpu_utilization_measurement_window: if let Some(mw) =
+                tr_opts.cpu_utilization_measurement_window.as_ref()
+            {
+                Some(HumanTime(mw.clone()))
+            } else {
+                cfg_plugin.cpu_utilization_measurement_window
+            },
             import: cfg_plugin.import,
             tcp_collector: cfg_plugin.tcp_collector,
             itm_collector: cfg_plugin.itm_collector,
@@ -377,6 +385,7 @@ mod internal {
         pub user_event_formatted_string_rename_map: RenameMap,
         pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
         pub interaction_mode: InteractionMode,
+        pub cpu_utilization_measurement_window: Option<HumanTime>,
     }
 
     impl From<CommonPluginConfig> for PluginConfig {
@@ -398,6 +407,7 @@ mod internal {
                 user_event_formatted_string_rename_map: c.user_event_formatted_string_rename_map,
                 user_event_fmt_arg_attr_keys: c.user_event_fmt_arg_attr_keys,
                 interaction_mode: c.interaction_mode,
+                cpu_utilization_measurement_window: c.cpu_utilization_measurement_window,
                 import: Default::default(),
                 tcp_collector: Default::default(),
                 itm_collector: Default::default(),
@@ -550,6 +560,7 @@ single-task-timeline = true
 flatten-isr-timelines = true
 disable-task-interactions = true
 include-unknown-events = true
+cpu-utilization-measurement-window = '100ms'
 file = '/path/to/memdump.bin'
 
     [[metadata.user-event-fmt-arg-attr-keys]]
@@ -807,6 +818,9 @@ breakpoint = "main"
                     .into_iter()
                     .collect(),
                     interaction_mode: InteractionMode::Ipc,
+                    cpu_utilization_measurement_window: HumanTime::from_str("100ms")
+                        .unwrap()
+                        .into(),
                     import: ImportConfig {
                         protocol: None,
                         file: PathBuf::from("/path/to/memdump.bin").into(),
@@ -900,6 +914,7 @@ breakpoint = "main"
                     .into_iter()
                     .collect(),
                     interaction_mode: InteractionMode::Ipc,
+                    cpu_utilization_measurement_window: None,
                     import: Default::default(),
                     tcp_collector: TcpCollectorConfig {
                         disable_control_plane: true,
@@ -997,6 +1012,7 @@ breakpoint = "main"
                     .into_iter()
                     .collect(),
                     interaction_mode: InteractionMode::FullyLinearized,
+                    cpu_utilization_measurement_window: None,
                     import: Default::default(),
                     tcp_collector: Default::default(),
                     itm_collector: ItmCollectorConfig {
@@ -1105,6 +1121,7 @@ breakpoint = "main"
                     .into_iter()
                     .collect(),
                     interaction_mode: InteractionMode::Ipc,
+                    cpu_utilization_measurement_window: None,
                     import: Default::default(),
                     tcp_collector: Default::default(),
                     itm_collector: Default::default(),
