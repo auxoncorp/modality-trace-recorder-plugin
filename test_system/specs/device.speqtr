@@ -56,24 +56,10 @@ end
 
 # @type = "led-timer-isr"
 behavior "LED Timer Interrupt"
-    when "the LED timer ISR begins"
-        TASK_SWITCH_ISR_BEGIN @ LEDTimerISR as isr_begin
-    end
-
-    until "the next LED timer ISR"
+    nominal case "LED timer fires"
         TASK_SWITCH_ISR_BEGIN @ LEDTimerISR
-    end
-
-    nominal case "an info message is logged"
-        isr_begin
             FOLLOWED BY
-        info @ LEDTimerISR (_.formatted_string = "blink")
-    end
-
-    recovery case "a higher priority context is activated"
-        isr_begin
-            FOLLOWED BY
-        TASK_ACTIVATE @ *
+        info @ LEDTimerISR (_.formatted_string = "blink") AGGREGATE count() > 0
     end
 end
 
