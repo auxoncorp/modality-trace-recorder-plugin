@@ -27,17 +27,26 @@ pub trait NanosecondsExt {
 
     fn resolution_ns(&self) -> Option<Nanoseconds>;
 
-    /// Convert to nanosecond time base using the frequency if non-zero,
-    /// otherwise fall back to unit ticks
-    fn lossy_timestamp_ns<T: Into<Timestamp>>(&self, ticks: T) -> Nanoseconds {
+    fn timer_frequency(&self) -> Option<u64>;
+
+    /// Convert to nanosecond time base using the frequency if non-zero
+    fn convert_timestamp<T: Into<Timestamp>>(&self, ticks: T) -> Option<Nanoseconds> {
         let t = ticks.into();
-        self.resolution_ns()
-            .map(|res| Nanoseconds::from(t.get_raw() * res.get_raw()))
-            .unwrap_or_else(|| t.get_raw().into())
+        self.timer_frequency()
+            .map(|freq| Nanoseconds::from((t.get_raw() * Self::ONE_SECOND) / freq))
     }
 }
 
 impl NanosecondsExt for Frequency {
+    fn timer_frequency(&self) -> Option<u64> {
+        if self.is_unitless() {
+            None
+        } else {
+            Some(self.get_raw().into())
+        }
+    }
+
+    /// Returns ~ns/tick (note that this will truncate)
     fn resolution_ns(&self) -> Option<Nanoseconds> {
         if self.is_unitless() {
             None
@@ -200,14 +209,13 @@ impl RecorderDataExt for RecorderData {
                         EventAttrKey::TicksToWait,
                         AttrVal::Integer(u32::from(ticks_to_wait).into()),
                     );
-                    attrs.insert(
-                        EventAttrKey::NanosToWait,
-                        AttrVal::Timestamp(
-                            self.timestamp_info
-                                .timer_frequency
-                                .lossy_timestamp_ns(ticks_to_wait),
-                        ),
-                    );
+                    if let Some(ns) = self
+                        .timestamp_info
+                        .timer_frequency
+                        .convert_timestamp(ticks_to_wait)
+                    {
+                        attrs.insert(EventAttrKey::NanosToWait, ns.into());
+                    }
                 }
             }
 
@@ -290,14 +298,13 @@ impl RecorderDataExt for RecorderData {
                         EventAttrKey::TicksToWait,
                         AttrVal::Integer(u32::from(ticks_to_wait).into()),
                     );
-                    attrs.insert(
-                        EventAttrKey::NanosToWait,
-                        AttrVal::Timestamp(
-                            self.timestamp_info
-                                .timer_frequency
-                                .lossy_timestamp_ns(ticks_to_wait),
-                        ),
-                    );
+                    if let Some(ns) = self
+                        .timestamp_info
+                        .timer_frequency
+                        .convert_timestamp(ticks_to_wait)
+                    {
+                        attrs.insert(EventAttrKey::NanosToWait, ns.into());
+                    }
                 }
             }
 
@@ -336,14 +343,13 @@ impl RecorderDataExt for RecorderData {
                         EventAttrKey::TicksToWait,
                         AttrVal::Integer(u32::from(ticks_to_wait).into()),
                     );
-                    attrs.insert(
-                        EventAttrKey::NanosToWait,
-                        AttrVal::Timestamp(
-                            self.timestamp_info
-                                .timer_frequency
-                                .lossy_timestamp_ns(ticks_to_wait),
-                        ),
-                    );
+                    if let Some(ns) = self
+                        .timestamp_info
+                        .timer_frequency
+                        .convert_timestamp(ticks_to_wait)
+                    {
+                        attrs.insert(EventAttrKey::NanosToWait, ns.into());
+                    }
                 }
             }
 
@@ -390,14 +396,13 @@ impl RecorderDataExt for RecorderData {
                         EventAttrKey::TicksToWait,
                         AttrVal::Integer(u32::from(ticks_to_wait).into()),
                     );
-                    attrs.insert(
-                        EventAttrKey::NanosToWait,
-                        AttrVal::Timestamp(
-                            self.timestamp_info
-                                .timer_frequency
-                                .lossy_timestamp_ns(ticks_to_wait),
-                        ),
-                    );
+                    if let Some(ns) = self
+                        .timestamp_info
+                        .timer_frequency
+                        .convert_timestamp(ticks_to_wait)
+                    {
+                        attrs.insert(EventAttrKey::NanosToWait, ns.into());
+                    }
                 }
             }
 
@@ -737,13 +742,13 @@ impl RecorderDataExt for RecorderData {
             TimelineAttrKey::LatestTimestampTicks,
             self.timestamp_info.latest_timestamp.ticks().into(),
         );
-        attrs.insert(
-            TimelineAttrKey::LatestTimestamp,
-            self.timestamp_info
-                .timer_frequency
-                .lossy_timestamp_ns(self.timestamp_info.latest_timestamp)
-                .into(),
-        );
+        if let Some(ns) = self
+            .timestamp_info
+            .timer_frequency
+            .convert_timestamp(self.timestamp_info.latest_timestamp)
+        {
+            attrs.insert(TimelineAttrKey::LatestTimestamp, ns.into());
+        }
         attrs.insert(
             TimelineAttrKey::InteractionMode,
             cfg.plugin.interaction_mode.to_string().into(),

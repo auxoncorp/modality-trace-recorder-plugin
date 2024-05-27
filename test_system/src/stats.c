@@ -12,25 +12,29 @@
 #include <string.h>
 
 #include "app_config.h"
+#include "logging.h"
 #include "stats.h"
 
-#define STATS_PERIOD_MS pdMS_TO_TICKS(1000)
+#define STATS_INTERVAL pdMS_TO_TICKS(500)
 #define MAX_TASKS (12)
 
 typedef struct
 {
-    traceString sym;
-    const char* name;
-} task_name_s;
+    TaskHandle_t task;
+    TraceStringHandle_t sym;
+    uint32_t stack_size;
+    unsigned long last_runtime_counter;
+} task_state_s;
 
 static void stats_task(void* params);
-static void log_task_stats(const TaskStatus_t* s, unsigned long total_runtime_percentage);
-static traceString task_name_sym(const char* name);
+static void log_task_stats(const TaskStatus_t* status, const task_state_s* state, unsigned long total_runtime);
+static task_state_s* task_state(const TaskStatus_t* s);
 static uint32_t task_stack_size(const char* name);
 
-static traceString g_stats_chn = 0;
+static TraceStringHandle_t g_stats_ch = NULL;
+static task_state_s g_task_state[MAX_TASKS] = {0};
 static TaskStatus_t g_task_stats[MAX_TASKS] = {0};
-static task_name_s g_task_names[MAX_TASKS] = {0};
+static unsigned long g_last_total_runtime = 0;
 
 void stats_init(void)
 {
@@ -39,38 +43,54 @@ void stats_init(void)
 
 static void stats_task(void* params)
 {
-    TickType_t next_wake;
     UBaseType_t i;
+    traceResult tr;
+    TickType_t next_wake;
     UBaseType_t num_tasks;
     unsigned long total_runtime;
     (void) params;
 
-    g_stats_chn = xTraceRegisterString("stats");
+    tr = xTraceStringRegister("stats", &g_stats_ch);
+    configASSERT(tr == TRC_SUCCESS);
+
     next_wake = xTaskGetTickCount();
     while(1)
     {
-        vTaskDelayUntil(&next_wake, STATS_PERIOD_MS);
+        const BaseType_t was_delayed = xTaskDelayUntil(&next_wake, STATS_INTERVAL);
+        if(was_delayed == pdFALSE)
+        {
+            WARN("Deadline missed");
+        }
 
         num_tasks = uxTaskGetNumberOfTasks();
         configASSERT(num_tasks <= MAX_TASKS);
 
         num_tasks = uxTaskGetSystemState(g_task_stats, num_tasks, &total_runtime);
+        configASSERT(num_tasks != 0);
 
-        if((total_runtime / 100) != 0)
+        for(i = 0; i < num_tasks; i += 1)
         {
-            for(i = 0; i < num_tasks; i += 1)
+            task_state_s* state = task_state(&g_task_stats[i]);
+
+            if((total_runtime / 100) != 0)
             {
-                log_task_stats(&g_task_stats[i], total_runtime);
+                log_task_stats(&g_task_stats[i], state, total_runtime);
             }
+
+            state->last_runtime_counter = g_task_stats[i].ulRunTimeCounter;
         }
+
+        g_last_total_runtime = total_runtime;
     }
 }
 
-static void log_task_stats(const TaskStatus_t* s, unsigned long total_runtime)
+static void log_task_stats(const TaskStatus_t* status, const task_state_s* state, unsigned long total_runtime)
 {
+    traceResult tr;
+
 #ifdef PRINT_STATS
     unsigned long total_runtime_percentage;
-    total_runtime_percentage = s->ulRunTimeCounter / (total_runtime / 100);
+    total_runtime_percentage = (status->ulRunTimeCounter - state->last_runtime_counter) / ((total_runtime - g_last_total_runtime) / 100);
     /* If the percentage is zero here then the task has
     consumed less than 1% of the total run time. */
     if(total_runtime_percentage == 0)
@@ -79,59 +99,61 @@ static void log_task_stats(const TaskStatus_t* s, unsigned long total_runtime)
     }
 
     printf("[%s] %lu %d %lu %lu%%\n",
-            s->pcTaskName,
-            task_stack_size(s->pcTaskName),
-            s->usStackHighWaterMark,
-            s->ulRunTimeCounter,
+            status->pcTaskName,
+            state->stack_size,
+            status->usStackHighWaterMark,
+            status->ulRunTimeCounter - state->last_runtime_counter,
             total_runtime_percentage);
 #endif
 
-    vTracePrintF(
-            g_stats_chn,
+    tr = xTracePrintF(
+            g_stats_ch,
             "%s %u %d %u %u",
-            task_name_sym(s->pcTaskName),
-            task_stack_size(s->pcTaskName),
-            s->usStackHighWaterMark,
-            s->ulRunTimeCounter,
-            total_runtime);
-
+            state->sym,
+            state->stack_size,
+            status->usStackHighWaterMark,
+            status->ulRunTimeCounter - state->last_runtime_counter,
+            total_runtime - g_last_total_runtime);
+    configASSERT(tr == TRC_SUCCESS);
 }
 
-static traceString task_name_sym(const char* name)
+static task_state_s* task_state(const TaskStatus_t* s)
 {
     int i;
-    traceString sym = 0;
+    traceResult tr;
+    task_state_s* state = NULL;
 
+    // Check if already registered
     for(i = 0; i < MAX_TASKS; i += 1)
     {
-        if(g_task_names[i].sym != 0)
+        if(g_task_state[i].task == s->xHandle)
         {
-            if(strncmp(g_task_names[i].name, name, configMAX_TASK_NAME_LEN) == 0)
-            {
-                sym = g_task_names[i].sym;
-                break;
-            }
+            state = &g_task_state[i];
+            break;
         }
     }
 
-    if(sym == 0)
+    // Allocate a new entry
+    if(state == NULL)
     {
         for(i = 0; i < MAX_TASKS; i += 1)
         {
-            if(g_task_names[i].sym == 0)
+            if(g_task_state[i].task == NULL)
             {
-                configASSERT(g_task_names[i].name == NULL);
-                sym = xTraceRegisterString(name);
-                g_task_names[i].sym = sym;
-                g_task_names[i].name = name;
+                configASSERT(g_task_state[i].sym == NULL);
+                tr = xTraceStringRegister(s->pcTaskName, &g_task_state[i].sym);
+                configASSERT(tr == TRC_SUCCESS);
+                g_task_state[i].task = s->xHandle;
+                g_task_state[i].stack_size = task_stack_size(s->pcTaskName);
+                state = &g_task_state[i];
                 break;
             }
         }
     }
 
-    configASSERT(sym != 0);
+    configASSERT(state != NULL);
 
-    return sym;
+    return state;
 }
 
 static uint32_t task_stack_size(const char* name)

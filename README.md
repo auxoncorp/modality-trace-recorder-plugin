@@ -134,59 +134,44 @@ Available modes:
 
 ### Target Resources
 
-Target CPU utilization is recorded whenever a context switch event occurs. The following event attributes are added:
-* `event.cpu_utilization`
-* `event.total_runtime`
-* `event.internal.trace_recorder.total_runtime.ticks`
-* `event.runtime`
-* `event.internal.trace_recorder.runtime.ticks`
+Target CPU utilization related information is recorded whenever a context switch event occurs.
+The default measurement interval is 500 ms and can be changed via the configuration field `cpu-utilization-measurement-window`.
+
+The following event attributes are added:
+* `event.cpu_utilization` : `event.runtime_in_window / event.runtime_window`
+* `event.runtime` : Total accumulated time this context has been in the running state
+* `event.total_runtime` : Total system accumulated run time
+* `event.runtime_in_window` : Time this context has been in the running state during `event.runtime_window`
+* `event.runtime_window` : Duration of the CPU utilization measurement window
 
 ```text
-$ modality query '* @ * (exists(_.internal.trace_recorder.cpu_utilization))' --show-internal
+$ modality query '* @ * (exists(_.cpu_utilization))'
 
 Result 1:
 ═════════
 ■             TASK_ACTIVATE @ Sensor   [%d55261a81d1643068e04f887c08ff0fe:4646]
-║               cpu_utilization = 7.612719137213211e-4
-║               internal.trace_recorder.code = 8247
-║               internal.trace_recorder.event_count = 17995
-║               internal.trace_recorder.event_count.raw = 17995
-║               internal.trace_recorder.id = 55
-║               internal.trace_recorder.nonce = 283
-║               internal.trace_recorder.object_handle = 536900304
-║               internal.trace_recorder.parameter_count = 2
-║               internal.trace_recorder.runtime.ticks = 11039
-║               internal.trace_recorder.timer.ticks = 14500732
-║               internal.trace_recorder.timestamp.ticks = 14500732
-║               internal.trace_recorder.total_runtime.ticks = 14500732
-║               internal.trace_recorder.type = TASK_ACTIVATE
-║               priority = 1
-║               runtime = +0.022994235s
+║               cpu_utilization = 5.089227485985114e-1
+║               name = TASK_ACTIVATE
+║               priority = 2
+║               runtime = +0.36644152s
+║               runtime_in_window = +0.25446948s
+║               runtime_window = +0.500016s
 ║               task = Sensor
-║               timestamp = +30.205025
-║               total_runtime = +30.205025s
+║               timestamp = +10.02834s
+║               total_runtime = +10.02834s
 
 Result 2:
 ═════════
 ■             TASK_ACTIVATE @ Actuator   [%d8626207906d4123a5da989a8e2ca1fa:53]
-║               cpu_utilization = 0
-║               internal.trace_recorder.code = 8247
-║               internal.trace_recorder.event_count = 88
-║               internal.trace_recorder.event_count.raw = 88
-║               internal.trace_recorder.id = 55
-║               internal.trace_recorder.nonce = 1
-║               internal.trace_recorder.object_handle = 536898120
-║               internal.trace_recorder.parameter_count = 2
-║               internal.trace_recorder.runtime.ticks = 0
-║               internal.trace_recorder.timer.ticks = 781
-║               internal.trace_recorder.timestamp.ticks = 781
-║               internal.trace_recorder.total_runtime.ticks = 781
-║               internal.trace_recorder.type = TASK_ACTIVATE
+║               cpu_utilization = 4.999068145030632e-1
+║               name = TASK_ACTIVATE
 ║               priority = 2
-║               runtime = +0s
+║               runtime = +0.92361575s
+║               runtime_in_window = +0.24996251s
+║               runtime_window = +0.5000182s
 ║               task = Actuator
-║               timestamp = +0.001626823s
-║               total_runtime = +0.001626823s
+║               timestamp = +11.133847s
+║               total_runtime = +11.133847s
 ```
 
 If the trace-recorder configuration `TRC_CFG_ENABLE_STACK_MONITOR` is set, then unused stack (low mark) is
@@ -234,6 +219,7 @@ These sections are the same for each of the plugins.
   - `time-domain` — Use the provided UUID as the time domain ID instead of generating a random one.
   - `interaction-mode` — Interaction mode to use (`fully-linearized` or `ipc`). The default value is `fully-linearized`.
   - `startup-task-name` — Use the provided initial startup task name instead of the default (`(startup)`).
+  - `cpu-utilization-measurement-window` — CPU utilization measurement window minimum duration (Default is 500ms).
   - `single-task-timeline` — Use a single timeline for all tasks instead of a timeline per task. ISRs can still be represented with their own timelines or not.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
   - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the `modality_timeline_id` channel (format is `name=<obj-name>,id=<timeline-id>`).
