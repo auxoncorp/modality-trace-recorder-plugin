@@ -44,11 +44,14 @@ behavior "Heap Usage"
 end
 
 # @type = "error logs"
-behavior "No Errors or dropped events"
+behavior "No Errors"
     prohibited case "no error messages exist"
         * @ * (_.channel = "error" OR _.channel = "#WFR")
     end
+end
     
+# @type = "missing data"
+behavior "No dropped events"
     prohibited case "no dropped events"
         * @ * (exists(_.trace_recorder.dropped_preceding_events))
     end

@@ -4,7 +4,7 @@ use modality_trace_recorder_plugin::{
     tracing::try_init_tracing_subscriber, trc_reader, Command, Interruptor, ReflectorOpts,
     TimelineAttrKey, TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
-use std::io::Write;
+use std::io::{BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 use tracing::debug;
@@ -147,9 +147,11 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let disable_control_plane = cfg.plugin.tcp_collector.disable_control_plane;
-    let mut stream_clone = stream.try_clone()?;
-    let mut join_handle =
-        tokio::spawn(async move { trc_reader::run(&mut stream_clone, cfg, intr).await });
+    let stream_clone = stream.try_clone()?;
+    let mut join_handle = tokio::spawn(async move {
+        let mut reader = BufReader::new(stream_clone);
+        trc_reader::run(&mut reader, cfg, intr).await
+    });
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
