@@ -13,17 +13,17 @@ exclude = ["test_system/"]
 name = "modality_trace_recorder_plugin"
 path = "src/lib.rs"
 
-[[bin]]
-name = "modality-trace-recorder-importer"
-path = "src/bin/importer.rs"
+#[[bin]]
+#name = "modality-trace-recorder-importer"
+#path = "src/bin/importer.rs"
 
-[[bin]]
-name = "modality-trace-recorder-tcp-collector"
-path = "src/bin/tcp_collector.rs"
+#[[bin]]
+#name = "modality-trace-recorder-tcp-collector"
+#path = "src/bin/tcp_collector.rs"
 
-[[bin]]
-name = "modality-trace-recorder-itm-collector"
-path = "src/bin/itm_collector.rs"
+#[[bin]]
+#name = "modality-trace-recorder-itm-collector"
+#path = "src/bin/itm_collector.rs"
 
 [[bin]]
 name = "modality-trace-recorder-rtt-collector"
@@ -51,6 +51,7 @@ clap = { version = "4.5", features = ["derive", "env", "color"] }
 ctrlc = { version = "3.4", features=["termination"] }
 exitcode = "1"
 ratelimit = "0.9"
+bytes = "1"
 human_bytes = "0.4"
 simple_moving_average = "1.0"
 auxon-sdk = { version = "1.3", features = ["modality"] }

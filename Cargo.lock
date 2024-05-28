@@ -1518,6 +1518,7 @@ dependencies = [
  "async-trait",
  "auxon-sdk",
  "byteordered",
+ "bytes",
  "clap",
  "ctrlc",
  "derive_more",
