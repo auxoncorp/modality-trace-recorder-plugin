@@ -1,6 +1,6 @@
 [package]
 name = "modality-trace-recorder-plugin"
-version = "0.25.0"
+version = "0.26.0"
 edition = "2021"
 authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite and ingest adapter library for Percepio's TraceRecorder data"
@@ -13,17 +13,17 @@ exclude = ["test_system/"]
 name = "modality_trace_recorder_plugin"
 path = "src/lib.rs"
 
-#[[bin]]
-#name = "modality-trace-recorder-importer"
-#path = "src/bin/importer.rs"
+[[bin]]
+name = "modality-trace-recorder-importer"
+path = "src/bin/importer.rs"
 
-#[[bin]]
-#name = "modality-trace-recorder-tcp-collector"
-#path = "src/bin/tcp_collector.rs"
+[[bin]]
+name = "modality-trace-recorder-tcp-collector"
+path = "src/bin/tcp_collector.rs"
 
-#[[bin]]
-#name = "modality-trace-recorder-itm-collector"
-#path = "src/bin/itm_collector.rs"
+[[bin]]
+name = "modality-trace-recorder-itm-collector"
+path = "src/bin/itm_collector.rs"
 
 [[bin]]
 name = "modality-trace-recorder-rtt-collector"
