@@ -124,3 +124,16 @@ behavior "Control Cycle"
         TASK_ACTIVATE @ * (_.timeline.name = other_task.task AND _.priority > 2)
     end
 end
+
+# @type = "state-machine"
+behavior "Sensor state machine"
+    nominal case "state machine mechanics"
+        STATEMACHINE_CREATE @ Sensor (_.state_machine = "sensor_sm")
+            -> STATEMACHINE_STATE_CREATE @ Sensor (_.state_machine = "sensor_sm" AND _.state = "INIT")
+            -> STATEMACHINE_STATE_CREATE @ Sensor (_.state_machine = "sensor_sm" AND _.state = "READING")
+            -> STATEMACHINE_STATE_CREATE @ Sensor (_.state_machine = "sensor_sm" AND _.state = "SUSPENDED")
+            -> STATEMACHINE_STATE_CHANGE @ Sensor (_.state_machine = "sensor_sm" AND _.state = "INIT")
+            -> STATEMACHINE_STATE_CHANGE @ Sensor (_.state_machine = "sensor_sm" AND _.state = "READING")
+            -> STATEMACHINE_STATE_CHANGE @ Sensor (_.state_machine = "sensor_sm" AND _.state = "SUSPENDED")
+    end
+end

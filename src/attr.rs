@@ -193,6 +193,13 @@ pub enum EventAttrKey {
     #[display(fmt = "event.bytes_in_buffer")]
     MessageBufferBytesInBuffer,
 
+    #[display(fmt = "event.state_machine")]
+    StateMachineName,
+    #[display(fmt = "event.state")]
+    StateMachineState,
+    #[display(fmt = "event.internal.trace_recorder.state_handle")]
+    StateMachineStateHandle,
+
     #[display(fmt = "event.internal.trace_recorder.ticks_to_wait")]
     TicksToWait,
     #[display(fmt = "event.internal.trace_recorder.ns_to_wait")]
