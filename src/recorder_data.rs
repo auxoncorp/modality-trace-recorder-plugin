@@ -498,6 +498,36 @@ impl RecorderDataExt for RecorderData {
                 );
             }
 
+            Event::StateMachineCreate(ev) => {
+                attrs.insert(
+                    EventAttrKey::StateMachineName,
+                    AttrVal::String(ev.name.to_string().into()),
+                );
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+            }
+
+            Event::StateMachineStateCreate(ev) | Event::StateMachineStateChange(ev) => {
+                attrs.insert(
+                    EventAttrKey::StateMachineName,
+                    AttrVal::String(ev.name.to_string().into()),
+                );
+                attrs.insert(
+                    EventAttrKey::ObjectHandle,
+                    AttrVal::Integer(u32::from(ev.handle).into()),
+                );
+                attrs.insert(
+                    EventAttrKey::StateMachineState,
+                    AttrVal::String(ev.state.to_string().into()),
+                );
+                attrs.insert(
+                    EventAttrKey::StateMachineStateHandle,
+                    AttrVal::Integer(u32::from(ev.state_handle).into()),
+                );
+            }
+
             Event::User(ev) => {
                 if cfg.user_event_channel {
                     // Use the channel as the event name

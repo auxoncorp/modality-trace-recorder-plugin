@@ -25,12 +25,33 @@ static void sensor_task(void* params)
 {
     int16_t adc_value;
     int i;
-    traceString ch;
     TickType_t next_wake;
+    traceResult tr;
+    traceString ch;
+    TraceStateMachineHandle_t sm;
+    TraceStateMachineStateHandle_t init_state;
+    TraceStateMachineStateHandle_t reading_state;
+    TraceStateMachineStateHandle_t suspended_state;
     (void) params;
 
+    tr = xTraceStringRegister("adc", &ch);
+    configASSERT(tr == TRC_SUCCESS);
+
+    tr = xTraceStateMachineCreate("sensor_sm", &sm);
+    configASSERT(tr == TRC_SUCCESS);
+    tr = xTraceStateMachineStateCreate(sm, "INIT", &init_state);
+    configASSERT(tr == TRC_SUCCESS);
+    tr = xTraceStateMachineStateCreate(sm, "READING", &reading_state);
+    configASSERT(tr == TRC_SUCCESS);
+    tr = xTraceStateMachineStateCreate(sm, "SUSPENDED", &suspended_state);
+    configASSERT(tr == TRC_SUCCESS);
+
+    tr = xTraceStateMachineSetState(sm, init_state);
+    configASSERT(tr == TRC_SUCCESS);
+    tr = xTraceStateMachineSetState(sm, reading_state);
+    configASSERT(tr == TRC_SUCCESS);
+
     i = 0;
-    ch = xTraceRegisterString("adc");
     next_wake = xTaskGetTickCount();
     while(1)
     {
@@ -39,15 +60,21 @@ static void sensor_task(void* params)
         {
             WARN("Sensor deadline missed");
         }
+
         adc_value = (int16_t) ((int8_t) SINE_WAVE[i]);
-        vTracePrintF(ch, "%d", adc_value);
+
+        tr = xTracePrintF(ch, "%d", adc_value);
+        configASSERT(tr == TRC_SUCCESS);
+
         actuator_send_adc_data(adc_value);
         i += 1;
 
         /* Shutdown the task */
         if(i == 256)
         {
-            WARN("Called vTaskSuspend");
+            tr = xTraceStateMachineSetState(sm, suspended_state);
+            configASSERT(tr == TRC_SUCCESS);
+            WARN("Calling vTaskSuspend");
             vTaskSuspend(NULL);
         }
     }
