@@ -42,10 +42,12 @@ pub async fn run<R: Read + Send>(
             Err(e) => {
                 use trace_recorder_parser::streaming::Error as TrcError;
                 match e {
-                    TrcError::ObjectLookup(_)
-                    | TrcError::InvalidObjectHandle(_)
-                    | TrcError::FormattedString(_) => {
+                    TrcError::ObjectLookup(_) | TrcError::InvalidObjectHandle(_) => {
                         ctx_mngr.set_degraded(format!("Data error {e}"));
+                        continue;
+                    }
+                    TrcError::FixedUserEventFmtStringLookup(_) | TrcError::FormattedString(_) => {
+                        warn!("Encountered an invalid user event. {e}");
                         continue;
                     }
                     TrcError::TraceRestarted(psf_start_word_endianness) => {

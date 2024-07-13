@@ -32,8 +32,9 @@ pub trait NanosecondsExt {
     /// Convert to nanosecond time base using the frequency if non-zero
     fn convert_timestamp<T: Into<Timestamp>>(&self, ticks: T) -> Option<Nanoseconds> {
         let t = ticks.into();
+        let ticks_ns = u128::from(t.get_raw()) * u128::from(Self::ONE_SECOND);
         self.timer_frequency()
-            .map(|freq| Nanoseconds::from((t.get_raw() * Self::ONE_SECOND) / freq))
+            .map(|freq| Nanoseconds::from((ticks_ns / u128::from(freq)) as u64))
     }
 }
 
@@ -842,6 +843,7 @@ impl From<Option<ObjectClass>> for MaybeUnknownObjectClass {
 
 fn arg_to_attr_val(arg: &Argument) -> AttrVal {
     match arg {
+        Argument::Char(v) => AttrVal::String(v.to_string().into()),
         Argument::I8(v) => AttrVal::Integer(i64::from(*v)),
         Argument::U8(v) => AttrVal::Integer(i64::from(*v)),
         Argument::I16(v) => AttrVal::Integer(i64::from(*v)),
