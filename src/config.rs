@@ -12,7 +12,6 @@ use auxon_sdk::{
 use derive_more::{Deref, From, Into};
 use serde::Deserialize;
 use std::env;
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -72,7 +71,7 @@ pub struct TcpCollectorConfig {
     pub disable_control_plane: bool,
     pub restart: bool,
     pub connect_timeout: Option<HumanTime>,
-    pub remote: Option<SocketAddr>,
+    pub remote: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
@@ -927,7 +926,7 @@ breakpoint = "main"
                         disable_control_plane: true,
                         restart: true,
                         connect_timeout: HumanTime::from_str("100ms").unwrap().into(),
-                        remote: "127.0.0.1:8888".parse::<SocketAddr>().unwrap().into(),
+                        remote: "127.0.0.1:8888".to_owned().into()
                     },
                     itm_collector: Default::default(),
                     rtt_collector: Default::default(),

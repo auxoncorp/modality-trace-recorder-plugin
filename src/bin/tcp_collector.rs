@@ -8,6 +8,7 @@ use std::io::{BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::{Duration, Instant};
 use tracing::debug;
+use url::Url;
 
 /// Collect trace recorder streaming protocol data from a TCP connection
 #[derive(Parser, Debug, Clone)]
@@ -47,11 +48,11 @@ pub struct Opts {
     )]
     pub connect_timeout: Option<humantime::Duration>,
 
-    /// The remote address and port to connect to.
+    /// The remote TCP server URL or address:port to connect to.
     ///
     /// The default is `127.0.0.1:8888`.
     #[clap(long, name = "remote", help_heading = "STREAMING PORT CONFIGURATION")]
-    pub remote: Option<SocketAddr>,
+    pub remote: Option<String>,
 }
 
 #[tokio::main]
@@ -112,10 +113,24 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.plugin.tcp_collector.remote = Some(remote);
     }
 
-    let remote = if let Some(remote) = cfg.plugin.tcp_collector.remote {
-        remote
+    let remote_string = if let Some(remote) = cfg.plugin.tcp_collector.remote.as_ref() {
+        remote.clone()
     } else {
-        "127.0.0.1:8888".parse()?
+        "127.0.0.1:8888".to_string()
+    };
+
+    let remote = if let Ok(socket_addr) = remote_string.parse::<SocketAddr>() {
+        socket_addr
+    } else {
+        let url = Url::parse(&remote_string)
+            .map_err(|e| format!("Failed to parse remote '{}' as URL. {}", remote_string, e))?;
+        debug!(remote_url = %url);
+        let socket_addrs = url
+            .socket_addrs(|| None)
+            .map_err(|e| format!("Failed to resolve remote URL '{}'. {}", url, e))?;
+        *socket_addrs
+            .first()
+            .ok_or_else(|| format!("Could not resolve URL '{}'", url))?
     };
 
     cfg.ingest
