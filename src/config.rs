@@ -11,6 +11,7 @@ use auxon_sdk::{
 };
 use derive_more::{Deref, From, Into};
 use serde::Deserialize;
+use std::collections::HashSet;
 use std::env;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
@@ -46,6 +47,7 @@ pub struct PluginConfig {
     pub ignored_object_classes: IgnoredObjectClasses,
     pub user_event_channel: bool,
     pub user_event_format_string: bool,
+    pub user_event_format_string_channels: HashSet<String>,
     pub user_event_channel_rename_map: RenameMap,
     pub user_event_formatted_string_rename_map: RenameMap,
     pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
@@ -291,6 +293,17 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.user_event_channel
             },
+            user_event_format_string_channels: if !tr_opts
+                .user_event_format_string_channel
+                .is_empty()
+            {
+                tr_opts
+                    .user_event_format_string_channel
+                    .into_iter()
+                    .collect()
+            } else {
+                cfg_plugin.user_event_format_string_channels
+            },
             user_event_format_string: if tr_opts.user_event_format_string {
                 true
             } else {
@@ -385,6 +398,7 @@ mod internal {
         pub ignored_object_classes: IgnoredObjectClasses,
         pub user_event_channel: bool,
         pub user_event_format_string: bool,
+        pub user_event_format_string_channels: Vec<String>,
         #[serde(rename = "user-event-channel-name")]
         pub user_event_channel_rename_map: RenameMap,
         #[serde(rename = "user-event-formatted-string-name")]
@@ -409,6 +423,10 @@ mod internal {
                 ignored_object_classes: c.ignored_object_classes,
                 user_event_channel: c.user_event_channel,
                 user_event_format_string: c.user_event_format_string,
+                user_event_format_string_channels: c
+                    .user_event_format_string_channels
+                    .into_iter()
+                    .collect(),
                 user_event_channel_rename_map: c.user_event_channel_rename_map,
                 user_event_formatted_string_rename_map: c.user_event_formatted_string_rename_map,
                 user_event_fmt_arg_attr_keys: c.user_event_fmt_arg_attr_keys,
@@ -560,6 +578,7 @@ run-id = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1'
 time-domain = 'a1a2a3a4b1b2c1c2d1d2d3d4d5d6d7d1'
 startup-task-name = 'm3'
 user-event-channel = true
+user-event-format-string-channels = ['info', 'err']
 user-event-format-string = true
 interaction-mode = "ipc"
 single-task-timeline = true
@@ -798,6 +817,10 @@ breakpoint = "main"
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
+                    user_event_format_string_channels: ["info", "err"]
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect(),
                     user_event_channel_rename_map: vec![RenameMapItem {
                         input: "act-cmd".to_owned(),
                         event_name: "MY_EVENT".to_owned()
@@ -894,6 +917,7 @@ breakpoint = "main"
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
                     user_event_format_string: true,
+                    user_event_format_string_channels: Default::default(),
                     user_event_channel_rename_map: vec![RenameMapItem {
                         input: "act-cmd".to_owned(),
                         event_name: "MY_EVENT".to_owned()
@@ -992,6 +1016,7 @@ breakpoint = "main"
                         .collect(),
                     user_event_channel: true,
                     user_event_format_string: true,
+                    user_event_format_string_channels: Default::default(),
                     user_event_channel_rename_map: vec![RenameMapItem {
                         input: "act-cmd".to_owned(),
                         event_name: "MY_EVENT".to_owned()
@@ -1101,6 +1126,7 @@ breakpoint = "main"
                         .collect(),
                     user_event_channel: true,
                     user_event_format_string: true,
+                    user_event_format_string_channels: Default::default(),
                     user_event_channel_rename_map: vec![RenameMapItem {
                         input: "act-cmd".to_owned(),
                         event_name: "MY_EVENT".to_owned()

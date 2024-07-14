@@ -530,7 +530,13 @@ impl RecorderDataExt for RecorderData {
             }
 
             Event::User(ev) => {
-                if cfg.user_event_channel {
+                if cfg
+                    .user_event_format_string_channels
+                    .contains(ev.channel.as_str())
+                {
+                    // Use the formatted string as the event name
+                    attrs.insert(EventAttrKey::Name, ev.formatted_string.to_string().into());
+                } else if cfg.user_event_channel {
                     // Use the channel as the event name
                     attrs.insert(EventAttrKey::Name, ev.channel.to_string().into());
                 } else if cfg.user_event_format_string {

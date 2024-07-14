@@ -228,6 +228,7 @@ These sections are the same for each of the plugins.
   - `ignored-object-classes` — Array of object classes to ignore processing during ingest (e.g. `[queue, semaphore]`)
   - `user-event-channel` — Instead of `USER_EVENT @ <task-name>`, use the user event channel as the event name (`<channel> @ <task-name>`).
   - `user-event-format-string` — Instead of `USER_EVENT @ <task-name>`, use the user event format string as the event name (`<format-string> @ <task-name>`).
+  - `user-event-format-string-channels` — Same as `user-event-format-string` but for a specific set of channels.
   - `[[user-event-channel-name]]` — Use a custom event name whenever a user event with a matching channel is processed.
     * `channel`— The input channel name to match on.
     * `event-name`— The Modality event name to use.
@@ -301,7 +302,7 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-tc
   - `disable-control-plane` — Disable sending control plane commands to the target. By default, `CMD_SET_ACTIVE` is sent on startup and shutdown to start and stop tracing on the target.
   - `restart` — Send a stop command before a start command to reset tracing on the target.
   - `connect-timeout` — Specify a connection timeout. Accepts durations like "10ms" or "1minute 2seconds 22ms".
-  - `remote` — The remote address and port to connect to. The default is `127.0.0.1:8888`.
+  - `remote` — The remote TCP server URL or `address:port` to connect to. The default is `127.0.0.1:8888`.
 
 ### ITM Collector Section
 

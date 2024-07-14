@@ -83,6 +83,17 @@ pub struct TraceRecorderOpts {
     )]
     pub user_event_format_string: bool,
 
+    /// Instead of `USER_EVENT @ <task-name>`, use the user event format string
+    /// as the event name (`<format-string> @ <task-name>`) for the given channel.
+    /// Can be supplied multiple times.
+    #[clap(
+        long,
+        name = "user-event-format-string-channel",
+        conflicts_with = "user-event-format-string",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub user_event_format_string_channel: Vec<String>,
+
     /// Use a custom event name whenever a user event with a matching
     /// channel is processed.
     /// Can be supplied multiple times.
