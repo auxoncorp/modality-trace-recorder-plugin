@@ -166,6 +166,7 @@ impl ContextManager {
                 reason = reason.to_string(),
                 "Downgrading to single timeline mode"
             );
+            self.degraded = true;
             self.cfg.plugin.interaction_mode = InteractionMode::FullyLinearized;
             self.cfg.plugin.single_task_timeline = true;
             self.cfg.plugin.flatten_isr_timelines = true;
