@@ -747,9 +747,9 @@ dependencies = [
 
 [[package]]
 name = "dunce"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56ce8c6da7551ec6c462cbaf3bfbc75131ebbfa1c944aeaa9dab51ca1c5f0c3b"
+checksum = "92773504d58c093f6de2459af4af33faa518c13451eb8f2b5698ed3d36e7c813"
 
 [[package]]
 name = "either"
@@ -901,9 +901,9 @@ checksum = "9fc0510504f03c51ada170672ac806f1f105a88aa97a5281117e1ddc3368e51a"
 
 [[package]]
 name = "flate2"
-version = "1.0.30"
+version = "1.0.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f54427cfd1c7829e2a139fcefea601bf088ebca651d2bf53ebc600eac295dae"
+checksum = "7f211bbe8e69bbd0cfdea405084f128ae8b4aaa6b0b522fc8f2b009084797920"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
@@ -1162,9 +1162,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hidapi"
-version = "2.6.1"
+version = "2.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e58251020fe88fe0dae5ebcc1be92b4995214af84725b375d08354d0311c23c"
+checksum = "7ad5e383c2cf354bf4b54b7adf1dc781942fa9ec2ebc0714ad32524de968edce"
 dependencies = [
  "cc",
  "cfg-if",
@@ -1884,7 +1884,7 @@ dependencies = [
 [[package]]
 name = "probe-rs"
 version = "0.23.0"
-source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k344_0.23.0#fe935f94be292484fcfe85a8a9193f52edece296"
+source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k344_0.23.0#97085a1ec0fb640f0dc375706af055ccc03f38c8"
 dependencies = [
  "anyhow",
  "async-io",
@@ -1929,7 +1929,7 @@ dependencies = [
 [[package]]
 name = "probe-rs-target"
 version = "0.23.0"
-source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k344_0.23.0#fe935f94be292484fcfe85a8a9193f52edece296"
+source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k344_0.23.0#97085a1ec0fb640f0dc375706af055ccc03f38c8"
 dependencies = [
  "base64 0.21.7",
  "jep106",
