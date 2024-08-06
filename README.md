@@ -224,6 +224,7 @@ These sections are the same for each of the plugins.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
   - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the `modality_timeline_id` channel (format is `name=<obj-name>,id=<timeline-id>`).
   - `deviant-event-id-base` — Parse Deviant custom events using the provided base event ID.
+  - `custom-printf-event-id` — Parse custom printf events using the provided event ID. See the [reference implementation](https://github.com/auxoncorp/trace-recorder-parser/blob/master/test_resources/src/streaming/v14/custom_printf_event.c) for the event layout.
   - `include-unknown-events` — Include unknown events instead of ignoring them.
   - `ignored-object-classes` — Array of object classes to ignore processing during ingest (e.g. `[queue, semaphore]`)
   - `user-event-channel` — Instead of `USER_EVENT @ <task-name>`, use the user event channel as the event name (`<channel> @ <task-name>`).

@@ -43,6 +43,7 @@ pub struct PluginConfig {
     pub disable_task_interactions: bool,
     pub use_timeline_id_channel: bool,
     pub deviant_event_id_base: Option<u16>,
+    pub custom_printf_event_id: Option<u16>,
     pub include_unknown_events: bool,
     pub ignored_object_classes: IgnoredObjectClasses,
     pub user_event_channel: bool,
@@ -283,6 +284,9 @@ impl TraceRecorderConfig {
             deviant_event_id_base: tr_opts
                 .deviant_event_id_base
                 .or(cfg_plugin.deviant_event_id_base),
+            custom_printf_event_id: tr_opts
+                .custom_printf_event_id
+                .or(cfg_plugin.custom_printf_event_id),
             ignored_object_classes: if !tr_opts.ignore_object_class.is_empty() {
                 tr_opts.ignore_object_class.clone().into_iter().collect()
             } else {
@@ -395,6 +399,7 @@ mod internal {
         pub use_timeline_id_channel: bool,
         pub include_unknown_events: bool,
         pub deviant_event_id_base: Option<u16>,
+        pub custom_printf_event_id: Option<u16>,
         pub ignored_object_classes: IgnoredObjectClasses,
         pub user_event_channel: bool,
         pub user_event_format_string: bool,
@@ -420,6 +425,7 @@ mod internal {
                 use_timeline_id_channel: c.use_timeline_id_channel,
                 include_unknown_events: c.include_unknown_events,
                 deviant_event_id_base: c.deviant_event_id_base,
+                custom_printf_event_id: c.custom_printf_event_id,
                 ignored_object_classes: c.ignored_object_classes,
                 user_event_channel: c.user_event_channel,
                 user_event_format_string: c.user_event_format_string,
@@ -735,6 +741,7 @@ metrics = true
 elf-file = 'fw.elf'
 thumb = true
 breakpoint = "main"
+custom-printf-event-id = 0x0FA0
 
     [[metadata.user-event-fmt-arg-attr-keys]]
     channel = 'stats'
@@ -813,6 +820,7 @@ breakpoint = "main"
                     disable_task_interactions: true,
                     use_timeline_id_channel: false,
                     deviant_event_id_base: None,
+                    custom_printf_event_id: None,
                     include_unknown_events: true,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
@@ -913,6 +921,7 @@ breakpoint = "main"
                     disable_task_interactions: true,
                     use_timeline_id_channel: false,
                     deviant_event_id_base: None,
+                    custom_printf_event_id: None,
                     include_unknown_events: true,
                     ignored_object_classes: Default::default(),
                     user_event_channel: true,
@@ -1010,6 +1019,7 @@ breakpoint = "main"
                     disable_task_interactions: true,
                     use_timeline_id_channel: true,
                     deviant_event_id_base: None,
+                    custom_printf_event_id: None,
                     include_unknown_events: true,
                     ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
                         .into_iter()
@@ -1120,6 +1130,7 @@ breakpoint = "main"
                     disable_task_interactions: true,
                     use_timeline_id_channel: true,
                     deviant_event_id_base: None,
+                    custom_printf_event_id: Some(0x0FA0),
                     include_unknown_events: true,
                     ignored_object_classes: vec![ObjectClass::Queue, ObjectClass::Semaphore]
                         .into_iter()

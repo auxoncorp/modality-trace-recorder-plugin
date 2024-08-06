@@ -17,6 +17,12 @@ pub async fn run<R: Read + Send>(
     intr: Interruptor,
 ) -> Result<(), Error> {
     let mut trd = RecorderData::find(&mut r)?;
+
+    if let Some(custom_printf_event_id) = cfg.plugin.custom_printf_event_id {
+        debug!(custom_printf_event_id, "Setting custom printf event ID");
+        trd.set_custom_printf_event_id(custom_printf_event_id.into());
+    }
+
     let frequency = trd.timestamp_info.timer_frequency;
 
     if trd.header.kernel_port != KernelPortIdentity::FreeRtos {

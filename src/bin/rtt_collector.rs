@@ -49,6 +49,7 @@ struct Opts {
     /// Use the provided RTT control block address instead of scanning the target memory for it.
     #[clap(
         long,
+        value_parser=clap_num::maybe_hex::<u32>,
         name = "control-block-address",
         help_heading = "STREAMING PORT CONFIGURATION"
     )]

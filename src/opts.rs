@@ -191,9 +191,19 @@ pub struct TraceRecorderOpts {
     #[clap(
         long,
         verbatim_doc_comment,
+        value_parser=clap_num::maybe_hex::<u16>,
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub deviant_event_id_base: Option<u16>,
+
+    /// Parse custom printf events using the provided event ID.
+    #[clap(
+        long,
+        value_parser=clap_num::maybe_hex::<u16>,
+        verbatim_doc_comment,
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub custom_printf_event_id: Option<u16>,
 
     /// Use the provided initial startup task name instead of the default ('(startup)')
     #[clap(

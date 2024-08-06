@@ -412,6 +412,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap-num"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e063d263364859dc54fb064cedb7c122740cd4733644b14b176c097f51e8ab7"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "clap_builder"
 version = "4.5.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1545,13 +1554,14 @@ dependencies = [
 
 [[package]]
 name = "modality-trace-recorder-plugin"
-version = "0.29.0"
+version = "0.30.0"
 dependencies = [
  "async-trait",
  "auxon-sdk",
  "byteordered",
  "bytes",
  "clap",
+ "clap-num",
  "ctrlc",
  "derive_more",
  "dirs 5.0.1",
@@ -2266,9 +2276,9 @@ dependencies = [
 
 [[package]]
 name = "serialport"
-version = "4.4.0"
+version = "4.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de7c4f0cce25b9b3518eea99618112f9ee4549f974480c8f43d3c06f03c131a0"
+checksum = "241ebb629ed9bf598b2b392ba42aa429f9ef2a0099001246a36ac4c084ee183f"
 dependencies = [
  "bitflags 2.6.0",
  "cfg-if",
@@ -2277,7 +2287,6 @@ dependencies = [
  "libudev",
  "mach2",
  "nix 0.26.4",
- "regex",
  "scopeguard",
  "unescaper",
  "winapi",
@@ -2724,9 +2733,9 @@ dependencies = [
 
 [[package]]
 name = "trace-recorder-parser"
-version = "0.17.0"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cde2ea4c9e06230237f3ec5be9728dfd8b30f8d89802ea31fa50a51a52a8656e"
+checksum = "eeb6823b3d87e1899b36507b7662814f031b0ef3d2905ccfe127381cf84d598d"
 dependencies = [
  "byteordered",
  "derive_more",

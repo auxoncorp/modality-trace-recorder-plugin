@@ -1,6 +1,6 @@
 [package]
 name = "modality-trace-recorder-plugin"
-version = "0.29.0"
+version = "0.30.0"
 edition = "2021"
 authors = ["Jon Lamb <jon@auxon.io>"]
 description = "A Modality reflector plugin suite and ingest adapter library for Percepio's TraceRecorder data"
@@ -49,6 +49,7 @@ itm = "0.9.0-rc.1"
 probe-rs = { git = "https://github.com/auxoncorp/probe-rs.git", branch = "s32k344_0.23.0" }
 goblin = "0.8"
 clap = { version = "4.5", features = ["derive", "env", "color"] }
+clap-num = "1.1"
 ctrlc = { version = "3.4", features=["termination"] }
 exitcode = "1"
 ratelimit = "0.9"
@@ -56,7 +57,7 @@ bytes = "1"
 human_bytes = "0.4"
 simple_moving_average = "1.0"
 auxon-sdk = { version = "1.3", features = ["modality"] }
-trace-recorder-parser = "0.17.0"
+trace-recorder-parser = "0.19.0"
 
 [dev-dependencies]
 tempfile = "3.10"
