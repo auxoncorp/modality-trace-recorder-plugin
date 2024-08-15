@@ -18,7 +18,8 @@ pub async fn run<R: Read + Send>(
 ) -> Result<(), Error> {
     let mut trd = RecorderData::find(&mut r)?;
 
-    if let Some(custom_printf_event_id) = cfg.plugin.custom_printf_event_id {
+    let maybe_custom_printf_event_id = cfg.plugin.custom_printf_event_id;
+    if let Some(custom_printf_event_id) = maybe_custom_printf_event_id {
         debug!(custom_printf_event_id, "Setting custom printf event ID");
         trd.set_custom_printf_event_id(custom_printf_event_id.into());
     }
@@ -60,6 +61,9 @@ pub async fn run<R: Read + Send>(
                         warn!("Detected a restarted trace stream");
                         trd =
                             RecorderData::read_with_endianness(psf_start_word_endianness, &mut r)?;
+                        if let Some(custom_printf_event_id) = maybe_custom_printf_event_id {
+                            trd.set_custom_printf_event_id(custom_printf_event_id.into());
+                        }
                         ctx_mngr.observe_trace_restart();
                         continue;
                     }
