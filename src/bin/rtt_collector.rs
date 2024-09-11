@@ -6,7 +6,6 @@ use modality_trace_recorder_plugin::{
     TraceRecorderConfig, TraceRecorderConfigEntry, TraceRecorderOpts,
 };
 use probe_rs::{
-    config::MemoryRegion,
     probe::{list::Lister, DebugProbeSelector, WireProtocol},
     rtt::{Rtt, ScanRegion, UpChannel},
     Core, CoreStatus, HaltReason, Permissions, RegisterValue, Session, VectorCatchCondition,
@@ -338,7 +337,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         if probes.is_empty() {
             return Err(Error::NoProbesAvailable.into());
         }
-        probes[0].open(&lister)?
+        probes[0].open()?
     };
 
     debug!(protocol = %trc_cfg.plugin.rtt_collector.protocol, speed = trc_cfg.plugin.rtt_collector.speed, "Configuring probe");
@@ -356,32 +355,30 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         probe.attach(chip, Permissions::default())?
     };
 
-    let rtt_scan_regions = session.target().rtt_scan_regions.clone();
-    let mut rtt_scan_region = if rtt_scan_regions.is_empty() {
-        ScanRegion::Ram
-    } else {
-        ScanRegion::Ranges(rtt_scan_regions)
-    };
-    if let Some(user_provided_addr) = trc_cfg.plugin.rtt_collector.control_block_address {
-        debug!(
-            rtt_addr = user_provided_addr,
-            "Using explicit RTT control block address"
-        );
-        rtt_scan_region = ScanRegion::Exact(user_provided_addr);
-    } else if let Some(Ok(mut file)) = trc_cfg
-        .plugin
-        .rtt_collector
-        .elf_file
-        .as_ref()
-        .map(fs::File::open)
-    {
-        if let Some(rtt_addr) = get_rtt_symbol(&mut file) {
-            debug!(rtt_addr = rtt_addr, "Found RTT symbol in ELF file");
-            rtt_scan_region = ScanRegion::Exact(rtt_addr as _);
-        }
-    }
+    let rtt_scan_region =
+        if let Some(user_provided_addr) = trc_cfg.plugin.rtt_collector.control_block_address {
+            debug!(
+                rtt_addr = user_provided_addr,
+                "Using explicit RTT control block address"
+            );
+            ScanRegion::Exact(user_provided_addr.into())
+        } else if let Some(Ok(mut file)) = trc_cfg
+            .plugin
+            .rtt_collector
+            .elf_file
+            .as_ref()
+            .map(fs::File::open)
+        {
+            if let Some(rtt_addr) = get_rtt_symbol(&mut file) {
+                debug!(rtt_addr = rtt_addr, "Found RTT symbol in ELF file");
+                ScanRegion::Exact(rtt_addr as _)
+            } else {
+                session.target().rtt_scan_regions.clone()
+            }
+        } else {
+            session.target().rtt_scan_regions.clone()
+        };
 
-    let memory_map = session.target().memory_map.clone();
     let mut core = session.core(trc_cfg.plugin.rtt_collector.core)?;
 
     if trc_cfg.plugin.rtt_collector.reset {
@@ -430,19 +427,20 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let mut rtt = match trc_cfg.plugin.rtt_collector.attach_timeout {
-        Some(to) if !to.0.is_zero() => {
-            attach_retry_loop(&mut core, &memory_map, &rtt_scan_region, to.0)?
-        }
+        Some(to) if !to.0.is_zero() => attach_retry_loop(&mut core, &rtt_scan_region, to.0)?,
         _ => {
             debug!("Attaching to RTT");
-            Rtt::attach_region(&mut core, &memory_map, &rtt_scan_region)?
+            Rtt::attach_region(&mut core, &rtt_scan_region)?
         }
     };
 
+    if trc_cfg.plugin.rtt_collector.up_channel >= rtt.up_channels.len() {
+        return Err(Error::UpChannelInvalid(trc_cfg.plugin.rtt_collector.up_channel).into());
+    }
+
     let up_channel = rtt
-        .up_channels()
-        .take(trc_cfg.plugin.rtt_collector.up_channel)
-        .ok_or_else(|| Error::UpChannelInvalid(trc_cfg.plugin.rtt_collector.up_channel))?;
+        .up_channels
+        .remove(trc_cfg.plugin.rtt_collector.up_channel);
     let up_channel_mode = up_channel.mode(&mut core)?;
     debug!(channel = up_channel.number(), mode = ?up_channel_mode, buffer_size = up_channel.buffer_size(), "Opened up channel");
 
@@ -571,6 +569,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(())
         });
 
+    let mut result = Ok(());
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             debug!("User signaled shutdown");
@@ -586,7 +585,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(_) => {},
                 Err(e) => {
                     error!(error = %e, "Encountered an error in TRC processing");
-                    return Err(e.into())
+                    result = Err(e.into());
                 }
             }
         }
@@ -595,19 +594,19 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(_) => {},
                 Err(e) => {
                     error!(error = %e, "Encountered an error in RTT streaming");
-                    return Err(e.into())
+                    result = Err(e.into());
                 }
             }
         }
     };
 
-    let mut session = match session.lock() {
-        Ok(s) => s,
-        // Reader thread is either shutdown or aborted
-        Err(s) => s.into_inner(),
-    };
-
     if !trc_cfg.plugin.rtt_collector.disable_control_plane {
+        let mut session = match session.lock() {
+            Ok(s) => s,
+            // Reader thread is either shutdown or aborted
+            Err(s) => s.into_inner(),
+        };
+
         let mut core = session.core(trc_cfg.plugin.rtt_collector.core)?;
 
         let down_channel = rtt
@@ -624,8 +623,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         let cmd = Command::Stop.to_le_bytes();
         down_channel.write(&mut core, &cmd)?;
     }
+    std::mem::drop(session);
 
-    Ok(())
+    result
 }
 
 fn get_rtt_symbol<T: io::Read + io::Seek>(file: &mut T) -> Option<u64> {
@@ -650,7 +650,6 @@ fn get_symbol<T: io::Read + io::Seek>(file: &mut T, symbol: &str) -> Option<u64>
 
 fn attach_retry_loop(
     core: &mut Core,
-    memory_map: &[MemoryRegion],
     scan_region: &ScanRegion,
     timeout: humantime::Duration,
 ) -> Result<Rtt, Error> {
@@ -658,7 +657,7 @@ fn attach_retry_loop(
     let timeout: Duration = timeout.into();
     let start = Instant::now();
     while Instant::now().duration_since(start) <= timeout {
-        match Rtt::attach_region(core, memory_map, scan_region) {
+        match Rtt::attach_region(core, scan_region) {
             Ok(rtt) => return Ok(rtt),
             Err(e) => {
                 if matches!(e, probe_rs::rtt::Error::ControlBlockNotFound) {
@@ -671,7 +670,7 @@ fn attach_retry_loop(
     }
 
     // Timeout reached
-    Ok(Rtt::attach(core, memory_map)?)
+    Ok(Rtt::attach(core)?)
 }
 
 #[derive(Debug, Error)]

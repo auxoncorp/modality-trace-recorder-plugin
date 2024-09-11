@@ -299,7 +299,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
         if probes.is_empty() {
             return Err(Error::NoProbesAvailable.into());
         }
-        probes[0].open(&lister)?
+        probes[0].open()?
     };
 
     debug!(protocol = %trc_cfg.plugin.itm_collector.protocol, speed = trc_cfg.plugin.itm_collector.speed, "Configuring probe");
