@@ -1454,7 +1454,9 @@ dependencies = [
  "pretty_assertions",
  "probe-rs",
  "ratelimit",
+ "rtt-proxy",
  "serde",
+ "serde_json",
  "serde_with",
  "simple_moving_average",
  "tempfile",
@@ -1935,6 +1937,15 @@ dependencies = [
  "byteorder",
  "rmp",
  "serde",
+]
+
+[[package]]
+name = "rtt-proxy"
+version = "0.1.0"
+source = "git+https://github.com/auxoncorp/trace-recorder-rtt-proxy.git?branch=main#354113c4d11413033da30c0d16fada69e677a732"
+dependencies = [
+ "serde",
+ "uuid",
 ]
 
 [[package]]

@@ -29,6 +29,10 @@ path = "src/bin/itm_collector.rs"
 name = "modality-trace-recorder-rtt-collector"
 path = "src/bin/rtt_collector.rs"
 
+[[bin]]
+name = "modality-trace-recorder-proxy-collector"
+path = "src/bin/proxy_collector.rs"
+
 [dependencies]
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
@@ -44,9 +48,9 @@ byteordered = "0.6"
 async-trait = "0.1"
 serde = { version = "1.0", features=["derive"] }
 serde_with = "3.6"
+serde_json = "1.0"
 itm = "0.9.0-rc.1"
 #probe-rs = "0.24"
-probe-rs = { git = "https://github.com/auxoncorp/probe-rs.git", branch = "s32k3xx" }
 goblin = "0.8"
 clap = { version = "4.5", features = ["derive", "env", "color"] }
 clap-num = "1.1"
@@ -58,6 +62,9 @@ human_bytes = "0.4"
 simple_moving_average = "1.0"
 auxon-sdk = { version = "1.3", features = ["modality"] }
 trace-recorder-parser = "0.19.0"
+
+probe-rs = { git = "https://github.com/auxoncorp/probe-rs.git", branch = "s32k3xx" }
+rtt-proxy = { git = "https://github.com/auxoncorp/trace-recorder-rtt-proxy.git", branch = "main" }
 
 [dev-dependencies]
 tempfile = "3.10"

@@ -374,6 +374,52 @@ reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-rt
     The default value is 1024.
   - `metrics` — Periodically log RTT metrics to stdout that can be used to assess the target and host RTT configuration.
 
+### Proxy Collector Section
+
+This collector is specifically for the [trace-recorder-rtt-proxy](https://github.com/auxoncorp/trace-recorder-rtt-proxy) service.
+
+These `metadata` fields are specific to the streaming RTT collector plugin.
+
+Note that individual plugin configuration goes in a specific table in your
+reflector configuration file, e.g. `[plugins.ingest.collectors.trace-recorder-proxy.metadata]`.
+
+* `[metadata]` — Plugin configuration table.
+  - `attach-timeout` — Specify a target attach timeout.
+    When provided, the plugin will continually attempt to attach and search for a valid
+    RTT control block anywhere in the target RAM.
+    Accepts durations like "10ms" or "1minute 2seconds 22ms".
+    See the [RTT timing section](https://docs.rs/probe-rs-rtt/0.14.2/probe_rs_rtt/struct.Rtt.html#examples-of-how-timing-between-host-and-target-effects-the-results) for more information.
+  - `disable-control-plane` — Disable sending control plane commands to the target.
+    By default, `CMD_SET_ACTIVE` is sent on startup and shutdown to start and stop tracing on the target.
+  - `restart` — Send a stop command before a start command to reset tracing on the target.
+  - `up-channel` — The RTT up (target to host) channel number to poll on. The default value is 1.
+  - `down-channel` — The RTT down (host to target) channel number to send start/stop commands on. The default value is 1.
+  - `probe-selector` — Select a specific probe instead of opening the first available one.
+  - `chip` — The target chip to attach to (e.g. `STM32F407VE`).
+  - `protocol` — Protocol used to connect to chip. Possible options: [`swd`, `jtag`]. The default value is `swd`.
+  - `speed` — The protocol speed in kHz. The default value is 4000.
+  - `core` — The selected core to target. The default value is 0.
+  - `reset` — Reset the target on startup.
+  - `attach-under-reset` — Attach to the chip under hard-reset.
+    This asserts the reset pin via the probe, plays the protocol init routines and deasserts the pin.
+  - `chip-description-path` — Provides custom target descriptions based on CMSIS Pack files.
+    See the [probe-rs target extraction](https://probe.rs/docs/knowledge-base/cmsis-packs/#target-extraction) section for
+    more information.
+  - `control-block-address` — Use the provided RTT control block address instead of scanning the target memory for it.
+  - `elf-file` — Extract the location in memory of the RTT control block debug symbol from an ELF file.
+  - `thumb` — Assume thumb mode when resolving symbols from the ELF file for breakpoint addresses.
+  - `setup-on-breakpoint` — Set a breakpoint on the address of the given symbol used to signal
+    when to optionally configure the channel mode and start reading.
+  - `rtt-poll-interval` — The host-side RTT polling interval. The default value is 1ms.
+    Accepts durations like "10ms" or "1minute 2seconds 22ms".
+  - `rtt-idle-poll-interval` — The host-side RTT idle polling interval. The default value is 100ms.
+    Accepts durations like "10ms" or "1minute 2seconds 22ms".
+  - `rtt-read-buffer-size` — Size of the host-side RTT buffer used to store data read off the target.
+    The default value is 1024.
+  - `force-exclusive` — Force exclusive access to the probe. Any existing sessions using this probe will be shut down.
+  - `connect-timeout` — Specify a connection timeout. Accepts durations like "10ms" or "1minute 2seconds 22ms".
+  - `remote` — The remote TCP proxy service URL or `address:port` to connect to. The default is `127.0.0.1:8888`.
+
 ### Configuration Examples
 
 The configuration example snippets below are based on the importer section

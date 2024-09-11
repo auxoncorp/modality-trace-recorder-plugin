@@ -84,3 +84,4 @@ jobs:
             target/release/modality-trace-recorder-tcp-collector
             target/release/modality-trace-recorder-itm-collector
             target/release/modality-trace-recorder-rtt-collector
+            target/release/modality-trace-recorder-proxy-collector

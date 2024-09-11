@@ -24,6 +24,7 @@ pub enum TraceRecorderConfigEntry {
     TcpCollector,
     ItmCollector,
     RttCollector,
+    ProxyCollector,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
@@ -59,6 +60,7 @@ pub struct PluginConfig {
     pub tcp_collector: TcpCollectorConfig,
     pub itm_collector: ItmCollectorConfig,
     pub rtt_collector: RttCollectorConfig,
+    pub proxy_collector: ProxyCollectorConfig,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
@@ -184,6 +186,17 @@ impl Default for RttCollectorConfig {
             metrics: false,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "kebab-case", default)]
+pub struct ProxyCollectorConfig {
+    #[serde(flatten)]
+    pub rtt: RttCollectorConfig,
+    pub rtt_idle_poll_interval: Option<HumanTime>,
+    pub force_exclusive: bool,
+    pub connect_timeout: Option<HumanTime>,
+    pub remote: Option<String>,
 }
 
 #[derive(Clone, Debug, From, Into, Deref, serde_with::DeserializeFromStr)]
@@ -355,6 +368,7 @@ impl TraceRecorderConfig {
             tcp_collector: cfg_plugin.tcp_collector,
             itm_collector: cfg_plugin.itm_collector,
             rtt_collector: cfg_plugin.rtt_collector,
+            proxy_collector: cfg_plugin.proxy_collector,
         };
 
         Ok(Self {
@@ -442,6 +456,7 @@ mod internal {
                 tcp_collector: Default::default(),
                 itm_collector: Default::default(),
                 rtt_collector: Default::default(),
+                proxy_collector: Default::default(),
             }
         }
     }
@@ -526,6 +541,27 @@ mod internal {
             c
         }
     }
+
+    #[derive(Clone, Debug, PartialEq, Eq, Default, Deserialize)]
+    #[serde(rename_all = "kebab-case", default)]
+    pub struct ProxyCollectorPluginConfig {
+        #[serde(flatten)]
+        pub common: CommonPluginConfig,
+        #[serde(flatten)]
+        pub proxy_collector: ProxyCollectorConfig,
+    }
+
+    impl From<ProxyCollectorPluginConfig> for PluginConfig {
+        fn from(pc: ProxyCollectorPluginConfig) -> Self {
+            let ProxyCollectorPluginConfig {
+                common,
+                proxy_collector,
+            } = pc;
+            let mut c = PluginConfig::from(common);
+            c.proxy_collector = proxy_collector;
+            c
+        }
+    }
 }
 
 impl PluginConfig {
@@ -534,8 +570,8 @@ impl PluginConfig {
         entry: TraceRecorderConfigEntry,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         use internal::{
-            ImportPluginConfig, ItmCollectorPluginConfig, RttCollectorPluginConfig,
-            TcpCollectorPluginConfig,
+            ImportPluginConfig, ItmCollectorPluginConfig, ProxyCollectorPluginConfig,
+            RttCollectorPluginConfig, TcpCollectorPluginConfig,
         };
         match entry {
             TraceRecorderConfigEntry::Importer => {
@@ -549,6 +585,9 @@ impl PluginConfig {
             }
             TraceRecorderConfigEntry::RttCollector => {
                 Self::from_cfg_metadata::<RttCollectorPluginConfig>(cfg).map(|c| c.into())
+            }
+            TraceRecorderConfigEntry::ProxyCollector => {
+                Self::from_cfg_metadata::<ProxyCollectorPluginConfig>(cfg).map(|c| c.into())
             }
         }
     }
@@ -865,6 +904,7 @@ custom-printf-event-id = 0x0FA0
                     tcp_collector: Default::default(),
                     itm_collector: Default::default(),
                     rtt_collector: Default::default(),
+                    proxy_collector: Default::default(),
                 },
             }
         );
@@ -963,6 +1003,7 @@ custom-printf-event-id = 0x0FA0
                     },
                     itm_collector: Default::default(),
                     rtt_collector: Default::default(),
+                    proxy_collector: Default::default(),
                 },
             }
         );
@@ -1074,6 +1115,7 @@ custom-printf-event-id = 0x0FA0
                         chip_description_path: PathBuf::from("/tmp/S32K_Series.yaml").into(),
                     },
                     rtt_collector: Default::default(),
+                    proxy_collector: Default::default(),
                 },
             }
         );
@@ -1190,6 +1232,7 @@ custom-printf-event-id = 0x0FA0
                         rtt_read_buffer_size: 1024.into(),
                         metrics: true,
                     },
+                    proxy_collector: Default::default(),
                 },
             }
         );
