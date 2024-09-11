@@ -7,7 +7,7 @@ use modality_trace_recorder_plugin::{
 use probe_rs::probe::{DebugProbeSelector, WireProtocol};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{self, BufReader, Write};
+use std::io::{self, BufReader};
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
