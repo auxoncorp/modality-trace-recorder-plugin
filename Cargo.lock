@@ -1085,8 +1085,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hidapi"
-version = "2.6.2"
-source = "git+https://github.com/auxoncorp/hidapi-rs.git?branch=builds-with-rustc-1.76#bfc2979a3af241d3441c23d415f68cf05f8f73a5"
+version = "2.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03b876ecf37e86b359573c16c8366bc3eba52b689884a0fc42ba3f67203d2a8b"
 dependencies = [
  "cc",
  "cfg-if",
@@ -1761,7 +1762,7 @@ dependencies = [
 [[package]]
 name = "probe-rs"
 version = "0.24.0"
-source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#b22ae68f98bef486128f3f55d9f9833555f2d4e6"
+source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#8b616ea69eb4126560c691ed3f86e2ba36fea2f2"
 dependencies = [
  "async-io",
  "bincode",
@@ -1798,7 +1799,7 @@ dependencies = [
 [[package]]
 name = "probe-rs-target"
 version = "0.24.0"
-source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#b22ae68f98bef486128f3f55d9f9833555f2d4e6"
+source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#8b616ea69eb4126560c691ed3f86e2ba36fea2f2"
 dependencies = [
  "base64",
  "indexmap 2.5.0",
@@ -1855,9 +1856,9 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.5.3"
+version = "0.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a908a6e00f1fdd0dfd9c0eb08ce85126f6d8bbda50017e74bc4a4b7d4a926a4"
+checksum = "0884ad60e090bf1345b93da0a5de8923c93884cd03f40dfcfddd3b4bee661853"
 dependencies = [
  "bitflags 2.6.0",
 ]
@@ -1965,9 +1966,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.36"
+version = "0.38.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f55e80d50763938498dd5ebb18647174e0c76dc38c5505294bb224624f30f36"
+checksum = "8acb788b847c24f28525660c4d7758620a7210875711f79e7f663cc152726811"
 dependencies = [
  "bitflags 2.6.0",
  "errno",
@@ -2552,9 +2553,9 @@ checksum = "08f95100a766bf4f8f28f90d77e0a5461bbdb219042e7679bebe79004fed8d75"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.12"
+version = "1.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+checksum = "e91b56cd4cadaeb79bbf1a5645f6b4f8dc5bde8834ad5894a8db35fda9efa1fe"
 
 [[package]]
 name = "unicode-normalization"

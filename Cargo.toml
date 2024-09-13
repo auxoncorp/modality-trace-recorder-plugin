@@ -72,6 +72,3 @@ pretty_assertions = "1.4"
 
 [profile.release]
 strip="debuginfo"
-
-[patch.crates-io]
-hidapi = { git = "https://github.com/auxoncorp/hidapi-rs.git", branch = "builds-with-rustc-1.76" }
