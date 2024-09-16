@@ -318,9 +318,9 @@ checksum = "8318a53db07bb3f8dca91a600466bdb3f2eaadeedfdbcf02e1accbad9271ba50"
 
 [[package]]
 name = "cc"
-version = "1.1.18"
+version = "1.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b62ac837cdb5cb22e10a256099b4fc502b1dfe560cb282963a974d7abd80e476"
+checksum = "2d74707dde2ba56f86ae90effb3b43ddd369504387e718014de010cec7959800"
 dependencies = [
  "shlex",
 ]
@@ -1112,9 +1112,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.60"
+version = "0.1.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7ffbb5a1b541ea2561f8c41c087286cc091e21e556a4f09a8f6cbf17b69b141"
+checksum = "235e081f3925a06703c2d0117ea8b91f042756fd6e7a6e5d901e8ca1a996b220"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
@@ -1751,9 +1751,9 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "pretty_assertions"
-version = "1.4.0"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af7cee1a6c8a5b9208b3cb1061f10c0cb689087b3d8ce85fb9d2dd7a29b6ba66"
+checksum = "3ae130e2f271fbc2ac3a40fb1d07180839cdbbe443c7a27e1e3c13c5cac0116d"
 dependencies = [
  "diff",
  "yansi",
@@ -1762,7 +1762,7 @@ dependencies = [
 [[package]]
 name = "probe-rs"
 version = "0.24.0"
-source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#8b616ea69eb4126560c691ed3f86e2ba36fea2f2"
+source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#64853d6d696e78090cf662a96da4280cf296ea00"
 dependencies = [
  "async-io",
  "bincode",
@@ -1799,7 +1799,7 @@ dependencies = [
 [[package]]
 name = "probe-rs-target"
 version = "0.24.0"
-source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#8b616ea69eb4126560c691ed3f86e2ba36fea2f2"
+source = "git+https://github.com/auxoncorp/probe-rs.git?branch=s32k3xx#64853d6d696e78090cf662a96da4280cf296ea00"
 dependencies = [
  "base64",
  "indexmap 2.5.0",
@@ -1943,7 +1943,7 @@ dependencies = [
 [[package]]
 name = "rtt-proxy"
 version = "0.1.0"
-source = "git+https://github.com/auxoncorp/trace-recorder-rtt-proxy.git?branch=main#354113c4d11413033da30c0d16fada69e677a732"
+source = "git+https://github.com/auxoncorp/trace-recorder-rtt-proxy.git?branch=main#394207928f29d1f139924b9714c3d6e2b9ab5cb6"
 dependencies = [
  "serde",
  "uuid",
@@ -2517,9 +2517,9 @@ dependencies = [
 
 [[package]]
 name = "typed-path"
-version = "0.9.1"
+version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04645b6c01cfb2ddabffc7c67ae6bfe7c3e28a5c37d729f6bb498e784f1fd70c"
+checksum = "50c0c7479c430935701ff2532e3091e6680ec03f2f89ffcd9988b08e885b90a5"
 
 [[package]]
 name = "typenum"
@@ -2894,9 +2894,9 @@ dependencies = [
 
 [[package]]
 name = "yansi"
-version = "0.5.1"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09041cd90cf85f7f8b2df60c646f853b7f535ce68f85244eb6731cf89fa498ec"
+checksum = "cfe53a6657fd280eaa890a3bc59152892ffa3e30101319d168b781ed6529b049"
 
 [[package]]
 name = "zero"
