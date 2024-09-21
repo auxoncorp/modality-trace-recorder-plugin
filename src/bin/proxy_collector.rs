@@ -46,7 +46,12 @@ pub struct Opts {
     pub control_block_address: Option<u32>,
 
     /// Extract the location in memory of the RTT control block debug symbol from an ELF file.
-    #[clap(long, name = "elf-file", help_heading = "STREAMING PORT CONFIGURATION")]
+    #[clap(
+        long,
+        env = "MODALITY_TRACE_RECORDER_ELF_FILE",
+        name = "elf-file",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
     pub elf_file: Option<PathBuf>,
 
     /// Set a breakpoint on the address of the given symbol used to signal
@@ -229,7 +234,12 @@ pub struct Opts {
     /// The remote TCP proxy server URL or address:port to connect to.
     ///
     /// The default is `127.0.0.1:8888`.
-    #[clap(long, name = "remote", help_heading = "STREAMING PORT CONFIGURATION")]
+    #[clap(
+        long,
+        name = "remote",
+        env = "MODALITY_TRACE_RECORDER_REMOTE",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
     pub remote: Option<String>,
 }
 
