@@ -60,6 +60,17 @@ pub struct Opts {
     )]
     pub breakpoint: Option<String>,
 
+    /// Set a breakpoint on the address of the given symbol
+    /// to signal a stopping condition.
+    ///
+    /// Can be an absolute address (decimal or hex) or symbol name.
+    #[arg(
+        long,
+        name = "stop-on-breakpoint",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub stop_on_breakpoint: Option<String>,
+
     /// Assume thumb mode when resolving symbols from the ELF file
     /// for breakpoint addresses.
     #[arg(
@@ -190,6 +201,22 @@ pub struct Opts {
     )]
     pub force_exclusive: bool,
 
+    /// Automatically attempt to recover the debug probe connection
+    /// when an error is encountered
+    #[clap(long, name = "auto-recover", help_heading = "REFLECTOR CONFIGURATION")]
+    pub auto_recover: bool,
+
+    /// Automatically stop the RTT session if no data is received
+    /// within specified timeout duration.
+    ///
+    /// Accepts durations like "10ms" or "1minute 2seconds 22ms".
+    #[clap(
+        long,
+        name = "no-data-timeout",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub no_data_timeout: Option<humantime::Duration>,
+
     /// Specify a connection timeout.
     /// Accepts durations like "10ms" or "1minute 2seconds 22ms".
     #[clap(
@@ -254,6 +281,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(to) = opts.connect_timeout {
         cfg.plugin.proxy_collector.connect_timeout = Some(to.into());
     }
+    if let Some(to) = opts.no_data_timeout {
+        cfg.plugin.proxy_collector.no_data_stop_timeout = Some(to.into());
+    }
     if let Some(remote) = opts.remote {
         cfg.plugin.proxy_collector.remote = Some(remote);
     }
@@ -268,6 +298,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Some(breakpoint) = opts.breakpoint.as_ref() {
         cfg.plugin.proxy_collector.rtt.breakpoint = Some(breakpoint.clone());
+    }
+    if let Some(breakpoint) = opts.stop_on_breakpoint.as_ref() {
+        cfg.plugin.proxy_collector.stop_on_breakpoint = Some(breakpoint.clone());
     }
     if opts.thumb {
         cfg.plugin.proxy_collector.rtt.thumb = true;
@@ -316,6 +349,9 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if opts.force_exclusive {
         cfg.plugin.proxy_collector.force_exclusive = true;
+    }
+    if opts.auto_recover {
+        cfg.plugin.proxy_collector.auto_recover = true;
     }
 
     let remote_string = if let Some(remote) = cfg.plugin.proxy_collector.remote.as_ref() {
@@ -389,6 +425,36 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             None
         };
 
+    let maybe_stop_on_breakpoint_address =
+        if let Some(bp_sym_or_addr) = &cfg.plugin.proxy_collector.stop_on_breakpoint {
+            if let Some(bp_addr) = bp_sym_or_addr.parse::<u64>().ok().or(u64::from_str_radix(
+                bp_sym_or_addr.trim_start_matches("0x"),
+                16,
+            )
+            .ok())
+            {
+                Some(bp_addr)
+            } else {
+                let elf_file = opts.elf_file.as_ref().ok_or_else(|| {
+                    "Using a breakpoint symbol name requires an ELF file".to_owned()
+                })?;
+                let mut file = File::open(elf_file)?;
+                let bp_addr = get_symbol(&mut file, bp_sym_or_addr).ok_or_else(|| {
+                    format!(
+                        "Could not locate the address of symbol '{0}' in the ELF file",
+                        bp_sym_or_addr
+                    )
+                })?;
+                if opts.thumb {
+                    Some(bp_addr & !1)
+                } else {
+                    Some(bp_addr)
+                }
+            }
+        } else {
+            None
+        };
+
     let proxy_cfg = rtt_proxy::ProxySessionConfig {
         version: rtt_proxy::V1,
         probe: rtt_proxy::ProbeConfig {
@@ -413,6 +479,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             force_exclusive: cfg.plugin.proxy_collector.force_exclusive,
         },
         target: rtt_proxy::TargetConfig {
+            auto_recover: cfg.plugin.proxy_collector.auto_recover,
             core: cfg.plugin.proxy_collector.rtt.core as _,
             reset: cfg.plugin.proxy_collector.rtt.reset,
         },
@@ -424,7 +491,13 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 .attach_timeout
                 .map(|t| t.as_millis() as _),
             setup_on_breakpoint_address: maybe_setup_on_breakpoint_address,
+            stop_on_breakpoint_address: maybe_stop_on_breakpoint_address,
             control_block_address: maybe_control_block_address,
+            no_data_stop_timeout_ms: cfg
+                .plugin
+                .proxy_collector
+                .no_data_stop_timeout
+                .map(|t| t.as_millis() as _),
             up_channel: cfg.plugin.proxy_collector.rtt.up_channel as _,
             down_channel: cfg.plugin.proxy_collector.rtt.down_channel as _,
             disable_control_plane: cfg.plugin.proxy_collector.rtt.disable_control_plane,

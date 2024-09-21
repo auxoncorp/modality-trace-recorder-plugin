@@ -196,6 +196,9 @@ pub struct ProxyCollectorConfig {
     pub rtt_idle_poll_interval: Option<HumanTime>,
     pub force_exclusive: bool,
     pub connect_timeout: Option<HumanTime>,
+    pub auto_recover: bool,
+    pub stop_on_breakpoint: Option<String>,
+    pub no_data_stop_timeout: Option<HumanTime>,
     pub remote: Option<String>,
 }
 
