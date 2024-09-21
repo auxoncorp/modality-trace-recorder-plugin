@@ -544,26 +544,18 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             remote.to_string().into(),
         ));
 
-    let mut stream = match cfg.plugin.proxy_collector.connect_timeout {
-        Some(to) if !to.0.is_zero() => connect_retry_loop(&remote, to.0.into())?,
-        _ => {
-            debug!(remote = %remote, "Connecting to to remote");
-            TcpStream::connect(remote)?
+    let connect_timeout = cfg
+        .plugin
+        .proxy_collector
+        .connect_timeout
+        .map(|to| to.0.into());
+
+    let stream = match cfg.plugin.proxy_collector.rtt.attach_timeout {
+        Some(to) if !to.0.is_zero() => {
+            start_session_retry_loop(connect_timeout, to.0.into(), remote, &proxy_cfg)?
         }
+        _ => start_session(remote, connect_timeout, &proxy_cfg)?,
     };
-
-    debug!("Starting a new session");
-    let mut se = serde_json::Serializer::new(&mut stream);
-    proxy_cfg.serialize(&mut se)?;
-
-    // Read response
-    let mut de = serde_json::Deserializer::from_reader(&mut stream);
-    let status = rtt_proxy::ProxySessionStatus::deserialize(&mut de)?;
-
-    match status {
-        rtt_proxy::ProxySessionStatus::Started(id) => debug!(%id, "Session started"),
-        rtt_proxy::ProxySessionStatus::Error(e) => return Err(e.into()),
-    }
 
     stream.set_nodelay(true)?;
 
@@ -587,6 +579,53 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     Ok(())
+}
+
+fn start_session_retry_loop(
+    connect_timeout: Option<Duration>,
+    attach_timeout: Duration,
+    remote: SocketAddr,
+    cfg: &rtt_proxy::ProxySessionConfig,
+) -> Result<TcpStream, Box<dyn std::error::Error>> {
+    let start = Instant::now();
+    while Instant::now().duration_since(start) <= attach_timeout {
+        match start_session(remote, connect_timeout, cfg) {
+            Ok(s) => return Ok(s),
+            Err(_) => continue,
+        }
+    }
+    start_session(remote, connect_timeout, cfg)
+}
+
+fn start_session(
+    remote: SocketAddr,
+    connect_timeout: Option<Duration>,
+    cfg: &rtt_proxy::ProxySessionConfig,
+) -> Result<TcpStream, Box<dyn std::error::Error>> {
+    let mut sock = match connect_timeout {
+        Some(to) if !to.is_zero() => connect_retry_loop(&remote, to)?,
+        _ => {
+            debug!(remote = %remote, "Connecting to to remote");
+            TcpStream::connect(remote)?
+        }
+    };
+
+    // Send session config
+    debug!("Starting a new session");
+    let mut se = serde_json::Serializer::new(&mut sock);
+    cfg.serialize(&mut se)?;
+
+    // Read response
+    let mut de = serde_json::Deserializer::from_reader(&mut sock);
+    let status = rtt_proxy::ProxySessionStatus::deserialize(&mut de)?;
+
+    match status {
+        rtt_proxy::ProxySessionStatus::Started(id) => {
+            debug!(%id, "Session started");
+            Ok(sock)
+        }
+        rtt_proxy::ProxySessionStatus::Error(e) => Err(e.into()),
+    }
 }
 
 fn connect_retry_loop(
