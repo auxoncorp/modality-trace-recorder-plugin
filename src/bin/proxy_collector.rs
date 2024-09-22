@@ -391,7 +391,7 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 "Using explicit RTT control block address"
             );
             Some(user_provided_addr as u64)
-        } else if let Some(elf_file) = &opts.elf_file {
+        } else if let Some(elf_file) = &cfg.plugin.proxy_collector.rtt.elf_file {
             debug!(elf_file = %elf_file.display(), "Reading ELF file");
             let mut file = File::open(elf_file)?;
             if let Some(rtt_addr) = get_rtt_symbol(&mut file) {
@@ -405,65 +405,75 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             None
         };
 
-    let maybe_setup_on_breakpoint_address =
-        if let Some(bp_sym_or_addr) = &cfg.plugin.proxy_collector.rtt.breakpoint {
-            if let Some(bp_addr) = bp_sym_or_addr.parse::<u64>().ok().or(u64::from_str_radix(
-                bp_sym_or_addr.trim_start_matches("0x"),
-                16,
-            )
-            .ok())
-            {
-                Some(bp_addr)
-            } else {
-                let elf_file = opts.elf_file.as_ref().ok_or_else(|| {
-                    "Using a breakpoint symbol name requires an ELF file".to_owned()
-                })?;
-                let mut file = File::open(elf_file)?;
-                let bp_addr = get_symbol(&mut file, bp_sym_or_addr).ok_or_else(|| {
-                    format!(
-                        "Could not locate the address of symbol '{0}' in the ELF file",
-                        bp_sym_or_addr
-                    )
-                })?;
-                if opts.thumb {
-                    Some(bp_addr & !1)
-                } else {
-                    Some(bp_addr)
-                }
-            }
+    let maybe_setup_on_breakpoint_address = if let Some(bp_sym_or_addr) =
+        &cfg.plugin.proxy_collector.rtt.breakpoint
+    {
+        if let Some(bp_addr) = bp_sym_or_addr.parse::<u64>().ok().or(u64::from_str_radix(
+            bp_sym_or_addr.trim_start_matches("0x"),
+            16,
+        )
+        .ok())
+        {
+            Some(bp_addr)
         } else {
-            None
-        };
+            let elf_file = cfg
+                .plugin
+                .proxy_collector
+                .rtt
+                .elf_file
+                .as_ref()
+                .ok_or_else(|| "Using a breakpoint symbol name requires an ELF file".to_owned())?;
+            let mut file = File::open(elf_file)?;
+            let bp_addr = get_symbol(&mut file, bp_sym_or_addr).ok_or_else(|| {
+                format!(
+                    "Could not locate the address of symbol '{0}' in the ELF file",
+                    bp_sym_or_addr
+                )
+            })?;
+            if cfg.plugin.proxy_collector.rtt.thumb {
+                Some(bp_addr & !1)
+            } else {
+                Some(bp_addr)
+            }
+        }
+    } else {
+        None
+    };
 
-    let maybe_stop_on_breakpoint_address =
-        if let Some(bp_sym_or_addr) = &cfg.plugin.proxy_collector.stop_on_breakpoint {
-            if let Some(bp_addr) = bp_sym_or_addr.parse::<u64>().ok().or(u64::from_str_radix(
-                bp_sym_or_addr.trim_start_matches("0x"),
-                16,
-            )
-            .ok())
-            {
-                Some(bp_addr)
-            } else {
-                let elf_file = opts.elf_file.as_ref().ok_or_else(|| {
-                    "Using a breakpoint symbol name requires an ELF file".to_owned()
-                })?;
-                let mut file = File::open(elf_file)?;
-                let bp_addr = get_symbol(&mut file, bp_sym_or_addr).ok_or_else(|| {
-                    format!(
-                        "Could not locate the address of symbol '{0}' in the ELF file",
-                        bp_sym_or_addr
-                    )
-                })?;
-                if opts.thumb {
-                    Some(bp_addr & !1)
-                } else {
-                    Some(bp_addr)
-                }
-            }
+    let maybe_stop_on_breakpoint_address = if let Some(bp_sym_or_addr) =
+        &cfg.plugin.proxy_collector.stop_on_breakpoint
+    {
+        if let Some(bp_addr) = bp_sym_or_addr.parse::<u64>().ok().or(u64::from_str_radix(
+            bp_sym_or_addr.trim_start_matches("0x"),
+            16,
+        )
+        .ok())
+        {
+            Some(bp_addr)
         } else {
-            None
-        };
+            let elf_file = cfg
+                .plugin
+                .proxy_collector
+                .rtt
+                .elf_file
+                .as_ref()
+                .ok_or_else(|| "Using a breakpoint symbol name requires an ELF file".to_owned())?;
+            let mut file = File::open(elf_file)?;
+            let bp_addr = get_symbol(&mut file, bp_sym_or_addr).ok_or_else(|| {
+                format!(
+                    "Could not locate the address of symbol '{0}' in the ELF file",
+                    bp_sym_or_addr
+                )
+            })?;
+            if cfg.plugin.proxy_collector.rtt.thumb {
+                Some(bp_addr & !1)
+            } else {
+                Some(bp_addr)
+            }
+        }
+    } else {
+        None
+    };
 
     let proxy_cfg = rtt_proxy::ProxySessionConfig {
         version: rtt_proxy::V1,
