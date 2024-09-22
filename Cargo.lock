@@ -1943,7 +1943,7 @@ dependencies = [
 [[package]]
 name = "rtt-proxy"
 version = "0.1.0"
-source = "git+https://github.com/auxoncorp/trace-recorder-rtt-proxy.git?branch=main#69172d60075a67446e0c3612b4c688e40078e14e"
+source = "git+https://github.com/auxoncorp/trace-recorder-rtt-proxy.git?branch=main#90050db5657c7e1c22505b941d6caa429699dd94"
 dependencies = [
  "serde",
  "uuid",
