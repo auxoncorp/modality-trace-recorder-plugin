@@ -569,13 +569,13 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
                 .rtt
                 .rtt_poll_interval
                 .map(|t| t.as_millis() as _)
-                .unwrap_or(100),
+                .unwrap_or(1),
             rtt_idle_poll_interval_ms: cfg
                 .plugin
                 .proxy_collector
                 .rtt_idle_poll_interval
                 .map(|t| t.as_millis() as _)
-                .unwrap_or(1),
+                .unwrap_or(100),
         },
     };
     trace!(?proxy_cfg);
