@@ -85,6 +85,29 @@ pub struct Opts {
     )]
     pub thumb: bool,
 
+    /// This session will have exclusive access to the core's
+    /// control functionality (i.e. hardware breakpoints, reset, etc).
+    /// If another session (i.e. the application to be booted by the bootloader)
+    /// is requested on this core, it will be suspended until this session
+    /// signals completion.
+    #[clap(
+        long,
+        name = "bootloader",
+        conflicts_with = "bootloader-companion-application",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub bootloader: bool,
+
+    /// This session will not drive any of the core's
+    /// control functionality (i.e. hardware breakpoints, reset, etc)
+    #[clap(
+        long,
+        name = "bootloader-companion-application",
+        conflicts_with = "bootloader",
+        help_heading = "STREAMING PORT CONFIGURATION"
+    )]
+    pub bootloader_companion_application: bool,
+
     /// Disable sending control plane commands to the target.
     /// By default, CMD_SET_ACTIVE is sent on startup and shutdown to
     /// start and stop tracing on the target.
@@ -363,6 +386,12 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     if opts.auto_recover {
         cfg.plugin.proxy_collector.auto_recover = true;
     }
+    if opts.bootloader {
+        cfg.plugin.proxy_collector.bootloader = true;
+    }
+    if opts.bootloader_companion_application {
+        cfg.plugin.proxy_collector.bootloader_companion_application = true;
+    }
 
     let remote_string = if let Some(remote) = cfg.plugin.proxy_collector.remote.as_ref() {
         remote.clone()
@@ -502,6 +531,11 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
             auto_recover: cfg.plugin.proxy_collector.auto_recover,
             core: cfg.plugin.proxy_collector.rtt.core as _,
             reset: cfg.plugin.proxy_collector.rtt.reset,
+            bootloader: cfg.plugin.proxy_collector.bootloader,
+            bootloader_companion_application: cfg
+                .plugin
+                .proxy_collector
+                .bootloader_companion_application,
         },
         rtt: rtt_proxy::RttConfig {
             attach_timeout_ms: cfg

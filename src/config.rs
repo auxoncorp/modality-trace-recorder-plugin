@@ -199,6 +199,8 @@ pub struct ProxyCollectorConfig {
     pub auto_recover: bool,
     pub stop_on_breakpoint: Option<String>,
     pub no_data_stop_timeout: Option<HumanTime>,
+    pub bootloader: bool,
+    pub bootloader_companion_application: bool,
     pub remote: Option<String>,
 }
 
