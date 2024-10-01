@@ -55,6 +55,7 @@ pub struct PluginConfig {
     pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
     pub interaction_mode: InteractionMode,
     pub cpu_utilization_measurement_window: Option<HumanTime>,
+    pub continue_on_error: bool,
 
     pub import: ImportConfig,
     pub tcp_collector: TcpCollectorConfig,
@@ -369,6 +370,11 @@ impl TraceRecorderConfig {
             } else {
                 cfg_plugin.cpu_utilization_measurement_window
             },
+            continue_on_error: if tr_opts.continue_on_error {
+                true
+            } else {
+                cfg_plugin.continue_on_error
+            },
             import: cfg_plugin.import,
             tcp_collector: cfg_plugin.tcp_collector,
             itm_collector: cfg_plugin.itm_collector,
@@ -430,6 +436,7 @@ mod internal {
         pub user_event_fmt_arg_attr_keys: FormatArgAttributeKeysSet,
         pub interaction_mode: InteractionMode,
         pub cpu_utilization_measurement_window: Option<HumanTime>,
+        pub continue_on_error: bool,
     }
 
     impl From<CommonPluginConfig> for PluginConfig {
@@ -457,6 +464,7 @@ mod internal {
                 user_event_fmt_arg_attr_keys: c.user_event_fmt_arg_attr_keys,
                 interaction_mode: c.interaction_mode,
                 cpu_utilization_measurement_window: c.cpu_utilization_measurement_window,
+                continue_on_error: c.continue_on_error,
                 import: Default::default(),
                 tcp_collector: Default::default(),
                 itm_collector: Default::default(),
@@ -636,6 +644,7 @@ flatten-isr-timelines = true
 disable-task-interactions = true
 include-unknown-events = true
 cpu-utilization-measurement-window = '100ms'
+continue-on-error = true
 file = '/path/to/memdump.bin'
 
     [[metadata.user-event-fmt-arg-attr-keys]]
@@ -902,6 +911,7 @@ custom-printf-event-id = 0x0FA0
                     cpu_utilization_measurement_window: HumanTime::from_str("100ms")
                         .unwrap()
                         .into(),
+                    continue_on_error: true,
                     import: ImportConfig {
                         protocol: None,
                         file: PathBuf::from("/path/to/memdump.bin").into(),
@@ -999,6 +1009,7 @@ custom-printf-event-id = 0x0FA0
                     .collect(),
                     interaction_mode: InteractionMode::Ipc,
                     cpu_utilization_measurement_window: None,
+                    continue_on_error: false,
                     import: Default::default(),
                     tcp_collector: TcpCollectorConfig {
                         disable_control_plane: true,
@@ -1100,6 +1111,7 @@ custom-printf-event-id = 0x0FA0
                     .collect(),
                     interaction_mode: InteractionMode::FullyLinearized,
                     cpu_utilization_measurement_window: None,
+                    continue_on_error: false,
                     import: Default::default(),
                     tcp_collector: Default::default(),
                     itm_collector: ItmCollectorConfig {
@@ -1212,6 +1224,7 @@ custom-printf-event-id = 0x0FA0
                     .collect(),
                     interaction_mode: InteractionMode::Ipc,
                     cpu_utilization_measurement_window: None,
+                    continue_on_error: false,
                     import: Default::default(),
                     tcp_collector: Default::default(),
                     itm_collector: Default::default(),

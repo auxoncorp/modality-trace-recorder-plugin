@@ -220,6 +220,7 @@ These sections are the same for each of the plugins.
   - `interaction-mode` — Interaction mode to use (`fully-linearized` or `ipc`). The default value is `fully-linearized`.
   - `startup-task-name` — Use the provided initial startup task name instead of the default (`(startup)`).
   - `cpu-utilization-measurement-window` — CPU utilization measurement window minimum duration (Default is 500ms).
+  - `continue-on-error` — Don't shutdown when an error in the data is encountered.
   - `single-task-timeline` — Use a single timeline for all tasks instead of a timeline per task. ISRs can still be represented with their own timelines or not.
   - `disable-task-interactions` — Don't synthesize interactions between tasks and ISRs when a context switch occurs.
   - `use-timeline-id-channel` — Detect task/ISR timeline IDs from the device by reading events on the `modality_timeline_id` channel (format is `name=<obj-name>,id=<timeline-id>`).

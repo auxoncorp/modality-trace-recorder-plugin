@@ -17,6 +17,7 @@ pub async fn run<R: Read + Send>(
     intr: Interruptor,
 ) -> Result<(), Error> {
     let mut trd = RecorderData::find(&mut r)?;
+    let continue_on_error = cfg.plugin.continue_on_error;
 
     let maybe_custom_printf_event_id = cfg.plugin.custom_printf_event_id;
     if let Some(custom_printf_event_id) = maybe_custom_printf_event_id {
@@ -68,9 +69,14 @@ pub async fn run<R: Read + Send>(
                         continue;
                     }
                     _ => {
-                        // Store the result so we can pass it along after flushing buffered events
-                        maybe_result = Some(Err(e.into()));
-                        break;
+                        if continue_on_error {
+                            warn!(error = %e, "Continue on-error");
+                            continue;
+                        } else {
+                            // Store the result so we can pass it along after flushing buffered events
+                            maybe_result = Some(Err(e.into()));
+                            break;
+                        }
                     }
                 }
             }

@@ -250,6 +250,14 @@ pub struct TraceRecorderOpts {
         help_heading = "TRACE RECORDER CONFIGURATION"
     )]
     pub cpu_utilization_measurement_window: Option<humantime::Duration>,
+
+    /// Don't shutdown when an error in the data is encountered.
+    #[clap(
+        long,
+        name = "continue-on-error",
+        help_heading = "TRACE RECORDER CONFIGURATION"
+    )]
+    pub continue_on_error: bool,
 }
 
 /// A map of trace recorder USER_EVENT channels/format-strings to Modality event names
