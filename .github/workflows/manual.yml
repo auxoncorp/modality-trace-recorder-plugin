@@ -1,0 +1,59 @@
+name: Manual Artifacts
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  package:
+    name: Build Release Package (20.04)
+    timeout-minutes: 60
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Print version
+        run: |
+          RELEASE_TAG=${{ github.ref }}
+          RELEASE_TAG="${RELEASE_TAG#refs/tags/}"
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> $GITHUB_ENV
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
+          echo "Release tag: $RELEASE_TAG"
+          echo "Release version: $RELEASE_VERSION"
+
+      - name: Install system packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev libftdi1-dev libudev-dev
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Fetch dependencies
+        run: cargo fetch
+
+      - name: Build release binaries
+        run: cargo build --release
+
+      - name: Prep artifacts
+        run: |
+          mkdir -p target/artifacts
+          cp target/release/modality-trace-recorder-importer target/artifacts/
+          cp target/release/modality-trace-recorder-tcp-collector target/artifacts/
+          cp target/release/modality-trace-recorder-itm-collector target/artifacts/
+          cp target/release/modality-trace-recorder-rtt-collector target/artifacts/
+          cp target/release/modality-trace-recorder-proxy-collector target/artifacts/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: modality-trace-recorder-plugins
+          path: target/artifacts/*
+          retention-days: 2
+          if-no-files-found: error
