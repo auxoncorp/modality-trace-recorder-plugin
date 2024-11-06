@@ -158,6 +158,7 @@ impl ContextManager {
 
     pub fn observe_trace_restart(&mut self) {
         self.first_event_observed = false;
+        self.context_stats.clear();
     }
 
     pub fn set_degraded<S: ToString>(&mut self, reason: S) {
