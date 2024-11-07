@@ -171,7 +171,8 @@ async fn do_main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             debug!("User signaled shutdown");
-            std::thread::sleep(Duration::from_millis(100));
+            let _ = stream.shutdown(std::net::Shutdown::Read).ok();
+            std::thread::sleep(Duration::from_millis(200));
             join_handle.abort();
         }
         res = &mut join_handle => {
