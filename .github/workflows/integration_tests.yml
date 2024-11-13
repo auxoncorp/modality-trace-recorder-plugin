@@ -51,14 +51,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libusb-1.0-0-dev libftdi1-dev libudev-dev bridge-utils gcc-arm-none-eabi binutils-arm-none-eabi
 
-      - name: Install renode (latest)
+      - name: Install renode (1.15.3)
         run: |
           cd /opt
-          sudo wget --quiet --output-document renode.tar.gz https://builds.renode.io/renode-latest.linux-portable.tar.gz
+          sudo wget --quiet --output-document renode.tar.gz https://builds.renode.io/renode-1.15.3.linux-portable.tar.gz
           sudo mkdir renode
           sudo tar xf renode.tar.gz -C renode --strip-components 1
           sudo pip install -r /opt/renode/tests/requirements.txt
           echo "PATH=/opt/renode:${PATH}" >> $GITHUB_ENV
+          /opt/renode/renode --version
 
       - name: Install toolchain
         uses: dtolnay/rust-toolchain@stable
